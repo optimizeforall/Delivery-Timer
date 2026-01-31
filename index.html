@@ -734,57 +734,33 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 10px;
-            padding: 8px 0;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 600;
+            gap: 8px;
+            padding: 0;
             margin: 0 auto 10px;
             width: fit-content;
-        }
-
-        .dark .split-row {
-            background: rgba(255,255,255,0.08);
-        }
-
-        .light .split-row {
-            background: rgba(0,0,0,0.08);
         }
 
         .split-row.hidden {
             display: none;
         }
 
-        .split-counter {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 4px;
-            border-radius: 999px;
-        }
-
-        .dark .split-counter {
-            background: rgba(255,255,255,0.12);
-        }
-
-        .light .split-counter {
-            background: rgba(0,0,0,0.08);
-        }
-
         .split-btn {
             border: none;
-            width: 26px;
-            height: 26px;
+            width: 32px;
+            height: 32px;
             border-radius: 8px;
-            font-size: 14px;
+            font-size: 16px;
             font-weight: 700;
             cursor: pointer;
-            background: rgba(255,255,255,0.15);
             color: inherit;
         }
 
+        .dark .split-btn {
+            background: rgba(255,255,255,0.15);
+        }
+
         .light .split-btn {
-            background: rgba(0,0,0,0.08);
+            background: rgba(0,0,0,0.12);
         }
 
         .split-btn:active {
@@ -798,9 +774,11 @@
         }
 
         .split-value {
-            min-width: 28px;
+            min-width: 32px;
             text-align: center;
             font-variant-numeric: tabular-nums;
+            font-size: 16px;
+            font-weight: 700;
             color: #ff6b35;
         }
 
@@ -1126,11 +1104,9 @@
     <div class="controls">
         <button class="btn btn-pause hidden" id="pauseBtn">PAUSE</button>
         <div class="split-row hidden" id="splitRow">
-            <div class="split-counter">
-                <button class="split-btn" id="splitMinus" aria-label="Decrease stops">-</button>
-                <span class="split-value" id="splitValue">1</span>
-                <button class="split-btn" id="splitPlus" aria-label="Increase stops">+</button>
-            </div>
+            <button class="split-btn" id="splitMinus" aria-label="Decrease stops">-</button>
+            <span class="split-value" id="splitValue">1</span>
+            <button class="split-btn" id="splitPlus" aria-label="Increase stops">+</button>
         </div>
         <button class="btn btn-main btn-start" id="startBtn">START</button>
         <button class="btn btn-main btn-delivered hidden" id="deliveredBtn">DELIVERED</button>
