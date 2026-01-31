@@ -1466,7 +1466,7 @@
 
             historyListEl.innerHTML = deliveries.slice().reverse().slice(0, 15).map((time, idx) => {
                 const num = deliveries.length - idx;
-                const singleRate = getSingleDeliveryRate(time);
+                c'onst singleRate = getSingleDeliveryRate(time);
                 const timeClass = getTimeClass(time);
 
                 return `<div class="history-item">
@@ -1492,6 +1492,8 @@
 
         // Start tracking session
         function startSession() {
+            if (hasStarted) return; // Prevent starting multiple times
+            
             hasStarted = true;
             isRunning = true;
             
@@ -1502,6 +1504,9 @@
             deliveredBtn.classList.remove('hidden');
             pauseBtn.classList.remove('hidden');
             
+            if (intervalId) {
+                clearInterval(intervalId); // Clear any existing interval
+            }
             intervalId = setInterval(tick, 1000);
             updateDisplay();
         }
@@ -1599,10 +1604,14 @@
             confirmText.textContent = 'This will clear all deliveries and times. This cannot be undone.';
             summaryStats.style.display = 'none';
             confirmButtons.innerHTML = `
-                <button class="confirm-btn confirm-cancel" onclick="hideResetConfirm()">Cancel</button>
-                <button class="confirm-btn confirm-yes" onclick="resetAll()">Reset</button>
+                <button class="confirm-btn confirm-cancel" id="confirmCancelBtn">Cancel</button>
+                <button class="confirm-btn confirm-yes" id="confirmYesBtn">Reset</button>
             `;
             confirmOverlay.classList.add('visible');
+            
+            // Re-attach event listeners
+            document.getElementById('confirmCancelBtn').addEventListener('click', hideResetConfirm);
+            document.getElementById('confirmYesBtn').addEventListener('click', resetAll);
         }
 
         // Show done confirmation with summary
@@ -1638,10 +1647,14 @@
             `;
             
             confirmButtons.innerHTML = `
-                <button class="confirm-btn confirm-cancel" onclick="hideResetConfirm()">Keep Going</button>
-                <button class="confirm-btn confirm-done" onclick="finishRoute()">Finish & Reset</button>
+                <button class="confirm-btn confirm-cancel" id="confirmCancelBtn">Keep Going</button>
+                <button class="confirm-btn confirm-done" id="confirmDoneBtn">Finish & Reset</button>
             `;
             confirmOverlay.classList.add('visible');
+            
+            // Re-attach event listeners
+            document.getElementById('confirmCancelBtn').addEventListener('click', hideResetConfirm);
+            document.getElementById('confirmDoneBtn').addEventListener('click', finishRoute);
         }
 
         // Hide confirmation dialog
@@ -1697,6 +1710,7 @@
             document.body.classList.toggle('dark', isDark);
             document.body.classList.toggle('light', !isDark);
             themeToggle.textContent = isDark ? '🌙' : '☀️';
+            localStorage.setItem('deliveryTimerTheme', isDark ? 'dark' : 'light');
         }
 
         // Toggle sound
@@ -1704,6 +1718,7 @@
             soundEnabled = !soundEnabled;
             soundToggle.textContent = soundEnabled ? '🔊' : '🔇';
             soundToggle.classList.toggle('muted', !soundEnabled);
+            localStorage.setItem('deliveryTimerSound', soundEnabled.toString());
         }
 
         // Event listeners
@@ -1719,32 +1734,35 @@
         splitPlus.addEventListener('click', () => setSplitCount(splitCount + 1));
 
         // Touch event handlers to prevent double-firing on mobile
-        let touchHandled = false;
+        let startTouchHandled = false;
+        let deliveredTouchHandled = false;
         
         startBtn.addEventListener('touchstart', function(e) {
-            touchHandled = true;
+            if (hasStarted) return; // Prevent starting twice
+            startTouchHandled = true;
             e.preventDefault();
             startSession();
-            setTimeout(() => { touchHandled = false; }, 300);
+            setTimeout(() => { startTouchHandled = false; }, 300);
         }, { passive: false });
 
         startBtn.addEventListener('click', function(e) {
-            if (touchHandled) {
+            if (startTouchHandled) {
                 e.preventDefault();
                 return;
             }
+            if (hasStarted) return; // Prevent starting twice
             startSession();
         });
 
         deliveredBtn.addEventListener('touchstart', function(e) {
-            touchHandled = true;
+            deliveredTouchHandled = true;
             e.preventDefault();
             recordDelivery();
-            setTimeout(() => { touchHandled = false; }, 300);
+            setTimeout(() => { deliveredTouchHandled = false; }, 300);
         }, { passive: false });
 
         deliveredBtn.addEventListener('click', function(e) {
-            if (touchHandled) {
+            if (deliveredTouchHandled) {
                 e.preventDefault();
                 return;
             }
@@ -1756,6 +1774,27 @@
                 hideResetConfirm();
             }
         });
+
+        // Cleanup interval on page unload to prevent memory leaks
+        window.addEventListener('beforeunload', function() {
+            if (intervalId) {
+                clearInterval(intervalId);
+            }
+        });
+
+        // Load saved preferences
+        if (localStorage.getItem('deliveryTimerTheme') === 'light') {
+            isDark = false;
+            document.body.classList.remove('dark');
+            document.body.classList.add('light');
+            themeToggle.textContent = '☀️';
+        }
+
+        if (localStorage.getItem('deliveryTimerSound') === 'false') {
+            soundEnabled = false;
+            soundToggle.textContent = '🔇';
+            soundToggle.classList.add('muted');
+        }
 
         // Initial display update
         updateDisplay();
