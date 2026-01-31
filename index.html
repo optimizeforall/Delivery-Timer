@@ -71,6 +71,13 @@
             font-weight: 600;
             color: #ff6b35;
             flex: 1;
+            cursor: pointer;
+            user-select: none;
+            transition: opacity 0.2s;
+        }
+
+        .header h1:active {
+            opacity: 0.7;
         }
 
         .header-controls {
@@ -1180,6 +1187,35 @@
             color: #16a34a;
         }
 
+        /* Minimal Mode Styles */
+        .minimal-mode .btn-stats {
+            display: none;
+        }
+
+        .minimal-mode .btn-done {
+            display: none !important;
+        }
+
+        .minimal-mode #soundToggle {
+            display: none;
+        }
+
+        .minimal-mode .stats-bar {
+            display: none;
+        }
+
+        .minimal-mode .inputs-row {
+            display: none;
+        }
+
+        .minimal-mode .pace-label {
+            font-size: 13px;
+        }
+
+        .minimal-mode .pace-value {
+            font-size: 26px;
+        }
+
         @media (max-height: 700px) {
             .current-time { font-size: 80px; }
             .history-section { max-height: 80px; }
@@ -1337,6 +1373,7 @@
         let soundEnabled = true;
         let audioContext = null;
         let splitCount = 1;
+        let isMinimalMode = false;
 
         const MIN_SPLIT_COUNT = 1;
         const MAX_SPLIT_COUNT = 10;
@@ -1387,6 +1424,7 @@
         const statsSaveBtn = $('statsSaveBtn');
         const statsClearBtn = $('statsClearBtn');
         const statsList = $('statsList');
+        const titleEl = document.querySelector('.header h1');
 
         // Initialize audio context
         function initAudio() {
@@ -1928,6 +1966,13 @@
             localStorage.setItem('deliveryTimerSound', soundEnabled.toString());
         }
 
+        // Toggle minimal mode
+        function toggleMinimalMode() {
+            isMinimalMode = !isMinimalMode;
+            document.body.classList.toggle('minimal-mode', isMinimalMode);
+            localStorage.setItem('deliveryTimerMinimalMode', isMinimalMode.toString());
+        }
+
         // Session storage functions
         const SESSIONS_KEY = 'deliveryTimerSessions';
 
@@ -2087,6 +2132,25 @@
         splitMinus.addEventListener('click', () => setSplitCount(splitCount - 1));
         splitPlus.addEventListener('click', () => setSplitCount(splitCount + 1));
 
+        // Minimal mode toggle on title click
+        let titleTouchHandled = false;
+        if (titleEl) {
+            titleEl.addEventListener('touchstart', function(e) {
+                titleTouchHandled = true;
+                e.preventDefault();
+                toggleMinimalMode();
+                setTimeout(() => { titleTouchHandled = false; }, 300);
+            }, { passive: false });
+
+            titleEl.addEventListener('click', function(e) {
+                if (titleTouchHandled) {
+                    e.preventDefault();
+                    return;
+                }
+                toggleMinimalMode();
+            });
+        }
+
         // Touch event handlers to prevent double-firing on mobile
         let startTouchHandled = false;
         let deliveredTouchHandled = false;
@@ -2148,6 +2212,11 @@
             soundEnabled = false;
             soundToggle.textContent = '🔇';
             soundToggle.classList.add('muted');
+        }
+
+        if (localStorage.getItem('deliveryTimerMinimalMode') === 'true') {
+            isMinimalMode = true;
+            document.body.classList.add('minimal-mode');
         }
 
         // Initial display update
