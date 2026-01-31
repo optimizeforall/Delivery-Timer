@@ -1309,7 +1309,7 @@
         }
 
         // Calculate rate for last N deliveries
-        function getRecentRate(n = 5) {
+        function getRecentRate(n = 7) {
             if (deliveries.length === 0) return 0;
             const recentDeliveries = deliveries.slice(-n);
             const recentTime = recentDeliveries.reduce((sum, time) => sum + time, 0);
@@ -1325,11 +1325,11 @@
             return 1 / hours;
         }
 
-        // Update estimated finish time based on recent pace (last 5 deliveries)
+        // Update estimated finish time based on recent pace (last 7 deliveries)
         function updateEstimate() {
             const target = getTarget();
             const remaining = target - deliveries.length;
-            const recentRate = getRecentRate(5);
+            const recentRate = getRecentRate(7);
 
             if (target > 0 && remaining > 0 && recentRate > 0) {
                 const hoursNeeded = remaining / recentRate;
@@ -1348,7 +1348,7 @@
             const target = getTarget();
             const finishTime = getFinishTime();
             const remaining = target - deliveries.length;
-            const recentRate = getRecentRate(5);
+            const recentRate = getRecentRate(7);
 
             // Update remaining label
             if (target > 0) {
@@ -1429,7 +1429,7 @@
             currentTimeEl.classList.add(getTimeClass(currentSeconds));
 
             const overallRate = getOverallRate();
-            const recentRate = getRecentRate(5);
+            const recentRate = getRecentRate(7);
             
             if (deliveries.length > 0 && totalSeconds > 0) {
                 perHourEl.textContent = overallRate.toFixed(1);
