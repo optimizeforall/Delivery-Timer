@@ -705,6 +705,90 @@
             background: rgba(234,88,12,0.1);
         }
 
+        .split-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 8px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .dark .split-row {
+            background: rgba(255,255,255,0.08);
+        }
+
+        .light .split-row {
+            background: rgba(0,0,0,0.08);
+        }
+
+        .split-row.hidden {
+            display: none;
+        }
+
+        .split-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            opacity: 0.75;
+        }
+
+        .split-counter {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px;
+            border-radius: 999px;
+        }
+
+        .dark .split-counter {
+            background: rgba(255,255,255,0.12);
+        }
+
+        .light .split-counter {
+            background: rgba(0,0,0,0.08);
+        }
+
+        .split-btn {
+            border: none;
+            width: 26px;
+            height: 26px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            background: rgba(255,255,255,0.15);
+            color: inherit;
+        }
+
+        .light .split-btn {
+            background: rgba(0,0,0,0.08);
+        }
+
+        .split-btn:active {
+            transform: scale(0.96);
+        }
+
+        .split-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .split-value {
+            min-width: 28px;
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+            color: #ff6b35;
+        }
+
+        .light .split-value {
+            color: #ea580c;
+        }
+
         .btn {
             border: none;
             border-radius: 16px;
@@ -1022,6 +1106,14 @@
 
     <div class="controls">
         <button class="btn btn-pause hidden" id="pauseBtn">PAUSE</button>
+        <div class="split-row hidden" id="splitRow">
+            <div class="split-label">Stops this drop</div>
+            <div class="split-counter">
+                <button class="split-btn" id="splitMinus" aria-label="Decrease stops">-</button>
+                <span class="split-value" id="splitValue">x1</span>
+                <button class="split-btn" id="splitPlus" aria-label="Increase stops">+</button>
+            </div>
+        </div>
         <button class="btn btn-main btn-start" id="startBtn">START</button>
         <button class="btn btn-main btn-delivered hidden" id="deliveredBtn">DELIVERED</button>
     </div>
@@ -1053,6 +1145,10 @@
         let isDark = true;
         let soundEnabled = true;
         let audioContext = null;
+        let splitCount = 1;
+
+        const MIN_SPLIT_COUNT = 1;
+        const MAX_SPLIT_COUNT = 10;
 
         // DOM elements
         const $ = id => document.getElementById(id);
@@ -1091,6 +1187,10 @@
         const themeToggle = $('themeToggle');
         const soundToggle = $('soundToggle');
         const estimateTime = $('estimateTime');
+        const splitRow = $('splitRow');
+        const splitMinus = $('splitMinus');
+        const splitPlus = $('splitPlus');
+        const splitValue = $('splitValue');
 
         // Initialize audio context
         function initAudio() {
@@ -1167,6 +1267,32 @@
         function getTarget() {
             const val = parseInt(targetInput.value);
             return isNaN(val) || val < 0 ? 0 : val;
+        }
+
+        // Update split count controls
+        function updateSplitControls() {
+            if (!splitRow) return;
+            splitValue.textContent = `x${splitCount}`;
+            splitMinus.disabled = splitCount <= MIN_SPLIT_COUNT;
+            splitPlus.disabled = splitCount >= MAX_SPLIT_COUNT;
+            splitRow.classList.toggle('hidden', !hasStarted);
+        }
+
+        function setSplitCount(value) {
+            const clamped = Math.max(MIN_SPLIT_COUNT, Math.min(MAX_SPLIT_COUNT, value));
+            splitCount = clamped;
+            updateSplitControls();
+        }
+
+        function splitDeliveryTimes(totalSeconds, count) {
+            const safeCount = Math.max(MIN_SPLIT_COUNT, Math.min(count, Math.max(totalSeconds, MIN_SPLIT_COUNT)));
+            const base = Math.floor(totalSeconds / safeCount);
+            const remainder = totalSeconds % safeCount;
+            const times = [];
+            for (let i = 0; i < safeCount; i++) {
+                times.push(base + (i < remainder ? 1 : 0));
+            }
+            return times;
         }
 
         // Get finish time as Date object
@@ -1342,6 +1468,7 @@
             
             // Show done button once session has started
             doneBtn.classList.toggle('visible', hasStarted);
+            updateSplitControls();
         }
 
         // Update delivery history list
@@ -1413,19 +1540,9 @@
         function recordDelivery() {
             if (currentSeconds === 0) return;
 
-            const time = currentSeconds;
-            const isFast = time < 90;
-            const isNewRecord = time < bestTime && deliveries.length > 0;
-
-            if (time < bestTime) {
-                bestTime = time;
-            }
-
-            if (isFast) {
-                fastStreak++;
-            } else {
-                fastStreak = 0;
-            }
+            const splitTimes = splitDeliveryTimes(currentSeconds, splitCount);
+            const hadPrevious = deliveries.length > 0;
+            let hitNewRecord = false;
 
             // Flash green animation
             currentTimeEl.classList.remove('flash-green');
@@ -1435,18 +1552,39 @@
             // Play sound
             playDeliverySound();
 
-            if (isNewRecord) {
+            splitTimes.forEach(time => {
+                const isFast = time < 90;
+                const isNewRecord = time < bestTime && hadPrevious;
+                
+                if (time < bestTime) {
+                    bestTime = time;
+                }
+                
+                if (isFast) {
+                    fastStreak++;
+                } else {
+                    fastStreak = 0;
+                }
+
+                if (isNewRecord) {
+                    hitNewRecord = true;
+                }
+
+                deliveries.push(time);
+            });
+
+            if (hitNewRecord) {
                 newRecord.classList.add('visible');
                 setTimeout(() => newRecord.classList.remove('visible'), 2000);
             }
 
-            deliveries.push(time);
             currentSeconds = 0;
 
             if (!isRunning) {
                 togglePause();
             }
 
+            setSplitCount(1);
             updateDisplay();
             updateHistory();
 
@@ -1562,6 +1700,7 @@
             bestTime = Infinity;
             isRunning = false;
             hasStarted = false;
+            splitCount = 1;
 
             pauseBtn.textContent = 'PAUSE';
             pauseBtn.classList.remove('paused');
@@ -1610,6 +1749,8 @@
         finishTimeInput.addEventListener('input', updateDisplay);
         themeToggle.addEventListener('click', toggleTheme);
         soundToggle.addEventListener('click', toggleSound);
+        splitMinus.addEventListener('click', () => setSplitCount(splitCount - 1));
+        splitPlus.addEventListener('click', () => setSplitCount(splitCount + 1));
 
         startBtn.addEventListener('touchend', function(e) {
             e.preventDefault();
