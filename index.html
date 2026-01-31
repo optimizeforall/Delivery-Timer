@@ -1361,7 +1361,7 @@
             };
         })();
 
-        // State variables
+        // State variables - now using timestamps for persistence
         let currentSeconds = 0;
         let totalSeconds = 0;
         let isRunning = false;
@@ -1375,8 +1375,16 @@
         let splitCount = 1;
         let isMinimalMode = false;
 
+        // Timestamp-based tracking for persistence across tab close/phone sleep
+        let sessionStartTimestamp = null;     // When session started (for total time)
+        let deliveryStartTimestamp = null;    // When current delivery started
+        let totalPausedMs = 0;                // Total paused duration for session
+        let deliveryPausedMs = 0;             // Paused duration for current delivery
+        let pauseStartTimestamp = null;       // When pause started (null if not paused)
+
         const MIN_SPLIT_COUNT = 1;
         const MAX_SPLIT_COUNT = 10;
+        const STATE_STORAGE_KEY = 'deliveryTimerState';
 
         // DOM elements
         const $ = id => document.getElementById(id);
@@ -1425,6 +1433,117 @@
         const statsClearBtn = $('statsClearBtn');
         const statsList = $('statsList');
         const titleEl = document.querySelector('.header h1');
+
+        // Persistent state management - saves timer state to survive tab close/phone sleep
+        function saveTimerState() {
+            if (!hasStarted) return;
+            
+            const state = {
+                sessionStartTimestamp,
+                deliveryStartTimestamp,
+                totalPausedMs,
+                deliveryPausedMs,
+                pauseStartTimestamp,
+                isRunning,
+                hasStarted,
+                deliveries,
+                bestTime: bestTime === Infinity ? null : bestTime,
+                targetStops: targetInput.value,
+                finishTime: finishTimeInput.value,
+                splitCount,
+                savedAt: Date.now()
+            };
+            
+            try {
+                localStorage.setItem(STATE_STORAGE_KEY, JSON.stringify(state));
+            } catch (e) {
+                // Storage might be full or unavailable
+            }
+        }
+
+        function loadTimerState() {
+            try {
+                const data = localStorage.getItem(STATE_STORAGE_KEY);
+                if (!data) return false;
+                
+                const state = JSON.parse(data);
+                
+                // Check if state is valid (not older than 24 hours)
+                if (!state.hasStarted || !state.sessionStartTimestamp) {
+                    return false;
+                }
+                
+                const age = Date.now() - state.savedAt;
+                if (age > 24 * 60 * 60 * 1000) {
+                    // State is too old, clear it
+                    clearTimerState();
+                    return false;
+                }
+                
+                // Restore state
+                sessionStartTimestamp = state.sessionStartTimestamp;
+                deliveryStartTimestamp = state.deliveryStartTimestamp;
+                totalPausedMs = state.totalPausedMs || 0;
+                deliveryPausedMs = state.deliveryPausedMs || 0;
+                pauseStartTimestamp = state.pauseStartTimestamp;
+                isRunning = state.isRunning;
+                hasStarted = state.hasStarted;
+                deliveries = state.deliveries || [];
+                bestTime = state.bestTime === null ? Infinity : state.bestTime;
+                splitCount = state.splitCount || 1;
+                
+                // Restore inputs
+                if (state.targetStops) targetInput.value = state.targetStops;
+                if (state.finishTime) finishTimeInput.value = state.finishTime;
+                
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function clearTimerState() {
+            try {
+                localStorage.removeItem(STATE_STORAGE_KEY);
+            } catch (e) {
+                // Ignore errors
+            }
+        }
+
+        // Calculate current elapsed times from timestamps
+        function calculateElapsedTimes() {
+            if (!hasStarted || !sessionStartTimestamp) {
+                currentSeconds = 0;
+                totalSeconds = 0;
+                return;
+            }
+            
+            const now = Date.now();
+            
+            // Calculate total session time
+            let totalElapsedMs = now - sessionStartTimestamp - totalPausedMs;
+            
+            // If currently paused, don't count time since pause started
+            if (pauseStartTimestamp !== null) {
+                totalElapsedMs -= (now - pauseStartTimestamp);
+            }
+            
+            totalSeconds = Math.max(0, Math.floor(totalElapsedMs / 1000));
+            
+            // Calculate current delivery time
+            if (deliveryStartTimestamp) {
+                let deliveryElapsedMs = now - deliveryStartTimestamp - deliveryPausedMs;
+                
+                // If currently paused, don't count time since pause started for current delivery
+                if (pauseStartTimestamp !== null) {
+                    deliveryElapsedMs -= (now - pauseStartTimestamp);
+                }
+                
+                currentSeconds = Math.max(0, Math.floor(deliveryElapsedMs / 1000));
+            } else {
+                currentSeconds = 0;
+            }
+        }
 
         // Initialize audio context
         function initAudio() {
@@ -1720,25 +1839,31 @@
             }).join('');
         }
 
-        // Timer tick function - called every second ALWAYS
+        // Timer tick function - called every second to update display
+        // Actual time tracking is now timestamp-based for persistence
         function tick() {
-            // Total time always runs while session is active
-            totalSeconds++;
-            
-            // Current delivery time only runs when not paused
-            if (isRunning) {
-                currentSeconds++;
-            }
-            
+            calculateElapsedTimes();
             updateDisplay();
+            
+            // Periodically save state (every 5 seconds to reduce writes)
+            if (totalSeconds % 5 === 0) {
+                saveTimerState();
+            }
         }
 
         // Start tracking session
         function startSession() {
             if (hasStarted) return; // Prevent starting multiple times
             
+            const now = Date.now();
+            
             hasStarted = true;
             isRunning = true;
+            sessionStartTimestamp = now;
+            deliveryStartTimestamp = now;
+            totalPausedMs = 0;
+            deliveryPausedMs = 0;
+            pauseStartTimestamp = null;
             
             // Initialize audio context on first user interaction
             initAudio();
@@ -1751,27 +1876,49 @@
                 clearInterval(intervalId); // Clear any existing interval
             }
             intervalId = setInterval(tick, 1000);
+            
+            // Save state immediately
+            saveTimerState();
             updateDisplay();
         }
 
         // Toggle pause/resume
         function togglePause() {
+            const now = Date.now();
+            
             if (isRunning) {
+                // Pausing
                 isRunning = false;
+                pauseStartTimestamp = now;
                 pauseBtn.textContent = 'RESUME';
                 pauseBtn.classList.add('paused');
                 currentTimeEl.classList.add('paused');
             } else {
+                // Resuming
                 isRunning = true;
+                
+                // Add paused duration to totals
+                if (pauseStartTimestamp !== null) {
+                    const pausedDuration = now - pauseStartTimestamp;
+                    totalPausedMs += pausedDuration;
+                    deliveryPausedMs += pausedDuration;
+                    pauseStartTimestamp = null;
+                }
+                
                 pauseBtn.textContent = 'PAUSE';
                 pauseBtn.classList.remove('paused');
                 currentTimeEl.classList.remove('paused');
             }
+            
+            saveTimerState();
             updateDisplay();
         }
 
         // Record a delivery
         function recordDelivery() {
+            // Calculate current time first
+            calculateElapsedTimes();
+            
             if (currentSeconds === 0) return;
 
             const splitTimes = splitDeliveryTimes(currentSeconds, splitCount);
@@ -1805,13 +1952,27 @@
                 setTimeout(() => newRecord.classList.remove('visible'), 2000);
             }
 
+            // Reset delivery timer using timestamp
+            const now = Date.now();
+            deliveryStartTimestamp = now;
+            deliveryPausedMs = 0;
             currentSeconds = 0;
 
+            // If paused, resume when recording delivery
             if (!isRunning) {
-                togglePause();
+                isRunning = true;
+                if (pauseStartTimestamp !== null) {
+                    const pausedDuration = now - pauseStartTimestamp;
+                    totalPausedMs += pausedDuration;
+                    pauseStartTimestamp = null;
+                }
+                pauseBtn.textContent = 'PAUSE';
+                pauseBtn.classList.remove('paused');
+                currentTimeEl.classList.remove('paused');
             }
 
             setSplitCount(1);
+            saveTimerState();
             updateDisplay();
             updateHistory();
 
@@ -1825,7 +1986,13 @@
             if (deliveries.length === 0) return;
 
             const lastDeliveryTime = deliveries.pop();
-            currentSeconds += lastDeliveryTime;
+            
+            // Adjust delivery start timestamp backwards to include the undone delivery time
+            // This effectively adds the time back to the current delivery
+            deliveryStartTimestamp -= (lastDeliveryTime * 1000);
+            
+            // Recalculate
+            calculateElapsedTimes();
             
             if (deliveries.length > 0) {
                 bestTime = Math.min(...deliveries);
@@ -1833,6 +2000,7 @@
                 bestTime = Infinity;
             }
             
+            saveTimerState();
             updateDisplay();
             updateHistory();
 
@@ -1859,6 +2027,9 @@
 
         // Show done confirmation with summary
         function showDoneConfirm() {
+            // Calculate latest times before showing summary
+            calculateElapsedTimes();
+            
             const overallRate = getOverallRate();
             const avgSeconds = deliveries.length > 0 ? Math.round(getDeliveryTimeSum() / deliveries.length) : 0;
             
@@ -1907,6 +2078,8 @@
 
         // Finish route and reset
         function finishRoute() {
+            // Calculate final times before saving
+            calculateElapsedTimes();
             // Auto-save session before resetting
             saveCurrentSession();
             resetAll();
@@ -1921,6 +2094,7 @@
                 intervalId = null;
             }
 
+            // Reset all state including timestamps
             currentSeconds = 0;
             totalSeconds = 0;
             deliveries = [];
@@ -1928,6 +2102,16 @@
             isRunning = false;
             hasStarted = false;
             splitCount = 1;
+            
+            // Reset timestamp tracking
+            sessionStartTimestamp = null;
+            deliveryStartTimestamp = null;
+            totalPausedMs = 0;
+            deliveryPausedMs = 0;
+            pauseStartTimestamp = null;
+            
+            // Clear persisted state
+            clearTimerState();
 
             pauseBtn.textContent = 'PAUSE';
             pauseBtn.classList.remove('paused');
@@ -1995,6 +2179,9 @@
 
         function saveCurrentSession() {
             if (deliveries.length === 0) return false;
+            
+            // Ensure we have the latest calculated times
+            calculateElapsedTimes();
 
             const session = {
                 id: Date.now(),
@@ -2193,11 +2380,35 @@
             }
         });
 
-        // Cleanup interval on page unload to prevent memory leaks
+        // Handle page visibility changes - recalculate times when returning to app
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible' && hasStarted) {
+                // User returned to app - immediately recalculate elapsed times
+                calculateElapsedTimes();
+                updateDisplay();
+                updateHistory();
+            }
+        });
+
+        // Also handle when app regains focus (backup for some mobile browsers)
+        window.addEventListener('focus', function() {
+            if (hasStarted) {
+                calculateElapsedTimes();
+                updateDisplay();
+            }
+        });
+
+        // Save state before page unload
         window.addEventListener('beforeunload', function() {
+            saveTimerState();
             if (intervalId) {
                 clearInterval(intervalId);
             }
+        });
+
+        // Also save state when page becomes hidden (mobile Chrome/Safari)
+        window.addEventListener('pagehide', function() {
+            saveTimerState();
         });
 
         // Load saved preferences
@@ -2219,8 +2430,45 @@
             document.body.classList.add('minimal-mode');
         }
 
-        // Initial display update
-        updateDisplay();
+        // Restore timer state from localStorage if available
+        // This allows the timer to persist across page closes and phone sleep
+        function initializeFromSavedState() {
+            if (loadTimerState()) {
+                // State was restored - update UI to match
+                startBtn.classList.add('hidden');
+                deliveredBtn.classList.remove('hidden');
+                pauseBtn.classList.remove('hidden');
+                
+                // Restore pause button state
+                if (!isRunning) {
+                    pauseBtn.textContent = 'RESUME';
+                    pauseBtn.classList.add('paused');
+                    currentTimeEl.classList.add('paused');
+                }
+                
+                // Calculate current times from timestamps
+                calculateElapsedTimes();
+                
+                // Start the display update interval
+                if (intervalId) {
+                    clearInterval(intervalId);
+                }
+                intervalId = setInterval(tick, 1000);
+                
+                // Update display and history
+                updateDisplay();
+                updateHistory();
+                updateSplitControls();
+                
+                return true;
+            }
+            return false;
+        }
+
+        // Try to restore saved state, otherwise just update display
+        if (!initializeFromSavedState()) {
+            updateDisplay();
+        }
     </script>
 </body>
 </html>
