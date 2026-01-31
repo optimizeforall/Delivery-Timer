@@ -1710,8 +1710,6 @@
         pauseBtn.addEventListener('click', togglePause);
         resetBtn.addEventListener('click', showResetConfirm);
         undoBtn.addEventListener('click', undoLast);
-        startBtn.addEventListener('click', startSession);
-        deliveredBtn.addEventListener('click', recordDelivery);
         doneBtn.addEventListener('click', showDoneConfirm);
         targetInput.addEventListener('input', updateDisplay);
         finishTimeInput.addEventListener('input', updateDisplay);
@@ -1720,15 +1718,38 @@
         splitMinus.addEventListener('click', () => setSplitCount(splitCount - 1));
         splitPlus.addEventListener('click', () => setSplitCount(splitCount + 1));
 
-        startBtn.addEventListener('touchend', function(e) {
+        // Touch event handlers to prevent double-firing on mobile
+        let touchHandled = false;
+        
+        startBtn.addEventListener('touchstart', function(e) {
+            touchHandled = true;
             e.preventDefault();
             startSession();
+            setTimeout(() => { touchHandled = false; }, 300);
         }, { passive: false });
 
-        deliveredBtn.addEventListener('touchend', function(e) {
+        startBtn.addEventListener('click', function(e) {
+            if (touchHandled) {
+                e.preventDefault();
+                return;
+            }
+            startSession();
+        });
+
+        deliveredBtn.addEventListener('touchstart', function(e) {
+            touchHandled = true;
             e.preventDefault();
             recordDelivery();
+            setTimeout(() => { touchHandled = false; }, 300);
         }, { passive: false });
+
+        deliveredBtn.addEventListener('click', function(e) {
+            if (touchHandled) {
+                e.preventDefault();
+                return;
+            }
+            recordDelivery();
+        });
 
         confirmOverlay.addEventListener('click', function(e) {
             if (e.target === confirmOverlay) {
