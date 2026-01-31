@@ -996,6 +996,190 @@
             color: #4ade80;
         }
 
+        .btn-stats {
+            background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-stats:active {
+            opacity: 0.8;
+        }
+
+        .stats-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            display: none;
+            flex-direction: column;
+            z-index: 100;
+            padding: 16px;
+            overflow-y: auto;
+        }
+
+        .stats-overlay.visible {
+            display: flex;
+        }
+
+        .stats-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .stats-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #60a5fa;
+        }
+
+        .stats-close {
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        .light .stats-close {
+            background: rgba(0,0,0,0.1);
+            color: #1c1917;
+        }
+
+        .stats-actions {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .stats-action-btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+        }
+
+        .stats-save-btn {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            color: white;
+        }
+
+        .stats-clear-btn {
+            background: rgba(239,68,68,0.7);
+            color: white;
+        }
+
+        .stats-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .stats-empty {
+            text-align: center;
+            padding: 40px 20px;
+            opacity: 0.5;
+            font-size: 14px;
+        }
+
+        .stats-session {
+            background: rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .light .stats-session {
+            background: rgba(0,0,0,0.06);
+        }
+
+        .stats-session:active {
+            background: rgba(255,255,255,0.15);
+        }
+
+        .light .stats-session:active {
+            background: rgba(0,0,0,0.1);
+        }
+
+        .stats-session-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .stats-session-date {
+            font-size: 14px;
+            font-weight: 600;
+            color: #ff6b35;
+        }
+
+        .stats-session-deliveries {
+            font-size: 13px;
+            font-weight: 700;
+            color: #4ade80;
+        }
+
+        .light .stats-session-deliveries {
+            color: #16a34a;
+        }
+
+        .stats-session-details {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            opacity: 0.7;
+        }
+
+        .stats-session-expanded {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            display: none;
+        }
+
+        .light .stats-session-expanded {
+            border-top-color: rgba(0,0,0,0.1);
+        }
+
+        .stats-session.expanded .stats-session-expanded {
+            display: block;
+        }
+
+        .stats-detail-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            padding: 4px 0;
+        }
+
+        .stats-detail-row .label {
+            opacity: 0.6;
+        }
+
+        .stats-detail-row .value {
+            font-weight: 600;
+            color: #4ade80;
+        }
+
+        .light .stats-detail-row .value {
+            color: #16a34a;
+        }
+
         @media (max-height: 700px) {
             .current-time { font-size: 80px; }
             .history-section { max-height: 80px; }
@@ -1025,9 +1209,24 @@
 
     <div class="new-record" id="newRecord">NEW PERSONAL BEST</div>
 
+    <div class="stats-overlay" id="statsOverlay">
+        <div class="stats-header">
+            <div class="stats-title">Session History</div>
+            <button class="stats-close" id="statsClose">×</button>
+        </div>
+        <div class="stats-actions">
+            <button class="stats-action-btn stats-save-btn" id="statsSaveBtn">SAVE CURRENT</button>
+            <button class="stats-action-btn stats-clear-btn" id="statsClearBtn">CLEAR ALL</button>
+        </div>
+        <div class="stats-list" id="statsList">
+            <div class="stats-empty">No saved sessions yet</div>
+        </div>
+    </div>
+
     <div class="header">
         <h1>Delivery Tracker</h1>
         <div class="header-controls">
+            <button class="btn-stats" id="statsBtn">STATS</button>
             <button class="btn-done" id="doneBtn">DONE</button>
             <button class="icon-toggle" id="soundToggle">🔊</button>
             <button class="icon-toggle" id="themeToggle">🌙</button>
@@ -1182,6 +1381,12 @@
         const splitMinus = $('splitMinus');
         const splitPlus = $('splitPlus');
         const splitValue = $('splitValue');
+        const statsBtn = $('statsBtn');
+        const statsOverlay = $('statsOverlay');
+        const statsClose = $('statsClose');
+        const statsSaveBtn = $('statsSaveBtn');
+        const statsClearBtn = $('statsClearBtn');
+        const statsList = $('statsList');
 
         // Initialize audio context
         function initAudio() {
@@ -1664,6 +1869,8 @@
 
         // Finish route and reset
         function finishRoute() {
+            // Auto-save session before resetting
+            saveCurrentSession();
             resetAll();
         }
 
@@ -1721,11 +1928,158 @@
             localStorage.setItem('deliveryTimerSound', soundEnabled.toString());
         }
 
+        // Session storage functions
+        const SESSIONS_KEY = 'deliveryTimerSessions';
+
+        function loadSessions() {
+            try {
+                const data = localStorage.getItem(SESSIONS_KEY);
+                return data ? JSON.parse(data) : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveSessions(sessions) {
+            try {
+                localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+            } catch (e) {
+                // Storage full or unavailable
+            }
+        }
+
+        function saveCurrentSession() {
+            if (deliveries.length === 0) return false;
+
+            const session = {
+                id: Date.now(),
+                date: new Date().toISOString(),
+                deliveries: deliveries.length,
+                totalSeconds: totalSeconds,
+                avgRate: getOverallRate(),
+                avgTime: Math.round(getDeliveryTimeSum() / deliveries.length),
+                bestTime: bestTime === Infinity ? null : bestTime
+            };
+
+            const sessions = loadSessions();
+            sessions.unshift(session); // Add to beginning
+            
+            // Keep only last 50 sessions
+            if (sessions.length > 50) {
+                sessions.length = 50;
+            }
+            
+            saveSessions(sessions);
+            return true;
+        }
+
+        function clearAllSessions() {
+            localStorage.removeItem(SESSIONS_KEY);
+            renderStatsList();
+        }
+
+        function formatSessionDate(isoString) {
+            const date = new Date(isoString);
+            const today = new Date();
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+
+            const isToday = date.toDateString() === today.toDateString();
+            const isYesterday = date.toDateString() === yesterday.toDateString();
+
+            const timeStr = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+            if (isToday) {
+                return `Today ${timeStr}`;
+            } else if (isYesterday) {
+                return `Yesterday ${timeStr}`;
+            } else {
+                return date.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + timeStr;
+            }
+        }
+
+        function renderStatsList() {
+            const sessions = loadSessions();
+
+            if (sessions.length === 0) {
+                statsList.innerHTML = '<div class="stats-empty">No saved sessions yet</div>';
+                return;
+            }
+
+            statsList.innerHTML = sessions.map(session => `
+                <div class="stats-session" data-id="${session.id}">
+                    <div class="stats-session-header">
+                        <span class="stats-session-date">${formatSessionDate(session.date)}</span>
+                        <span class="stats-session-deliveries">${session.deliveries} stops</span>
+                    </div>
+                    <div class="stats-session-details">
+                        <span>${session.avgRate.toFixed(1)}/hr</span>
+                        <span>${formatTime(session.totalSeconds, true)}</span>
+                    </div>
+                    <div class="stats-session-expanded">
+                        <div class="stats-detail-row">
+                            <span class="label">Total Deliveries</span>
+                            <span class="value">${session.deliveries}</span>
+                        </div>
+                        <div class="stats-detail-row">
+                            <span class="label">Total Time</span>
+                            <span class="value">${formatTime(session.totalSeconds, true)}</span>
+                        </div>
+                        <div class="stats-detail-row">
+                            <span class="label">Average Rate</span>
+                            <span class="value">${session.avgRate.toFixed(1)}/hr</span>
+                        </div>
+                        <div class="stats-detail-row">
+                            <span class="label">Avg per Delivery</span>
+                            <span class="value">${formatTime(session.avgTime)}</span>
+                        </div>
+                        <div class="stats-detail-row">
+                            <span class="label">Best Time</span>
+                            <span class="value">${session.bestTime ? formatTime(session.bestTime) : '--:--'}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            // Add click handlers to toggle expanded view
+            statsList.querySelectorAll('.stats-session').forEach(el => {
+                el.addEventListener('click', () => {
+                    el.classList.toggle('expanded');
+                });
+            });
+        }
+
+        function showStatsModal() {
+            renderStatsList();
+            statsOverlay.classList.add('visible');
+        }
+
+        function hideStatsModal() {
+            statsOverlay.classList.remove('visible');
+        }
+
         // Event listeners
         pauseBtn.addEventListener('click', togglePause);
         resetBtn.addEventListener('click', showResetConfirm);
         undoBtn.addEventListener('click', undoLast);
         doneBtn.addEventListener('click', showDoneConfirm);
+        statsBtn.addEventListener('click', showStatsModal);
+        statsClose.addEventListener('click', hideStatsModal);
+        statsSaveBtn.addEventListener('click', () => {
+            if (saveCurrentSession()) {
+                renderStatsList();
+            }
+        });
+        statsClearBtn.addEventListener('click', () => {
+            if (confirm('Clear all saved sessions?')) {
+                clearAllSessions();
+            }
+        });
+        statsOverlay.addEventListener('click', (e) => {
+            if (e.target === statsOverlay) {
+                hideStatsModal();
+            }
+        });
         targetInput.addEventListener('input', updateDisplay);
         finishTimeInput.addEventListener('input', updateDisplay);
         themeToggle.addEventListener('click', toggleTheme);
