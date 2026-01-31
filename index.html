@@ -1466,7 +1466,7 @@
 
             historyListEl.innerHTML = deliveries.slice().reverse().slice(0, 15).map((time, idx) => {
                 const num = deliveries.length - idx;
-                c'onst singleRate = getSingleDeliveryRate(time);
+                const singleRate = getSingleDeliveryRate(time);
                 const timeClass = getTimeClass(time);
 
                 return `<div class="history-item">
