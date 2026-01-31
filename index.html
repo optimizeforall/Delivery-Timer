@@ -20,16 +20,34 @@
             flex-direction: column;
             overflow: hidden;
             user-select: none;
-            transition: background 0.3s, color 0.3s;
+            transition: color 0.3s;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: -1;
+            transition: background 0.3s;
+        }
+
+        body.dark::before {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        }
+
+        body.light::before {
+            background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
         }
 
         body.dark {
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
             color: white;
         }
 
         body.light {
-            background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
             color: #1c1917;
         }
 
