@@ -456,24 +456,6 @@
             position: relative;
         }
 
-        .streak-badge {
-            position: absolute;
-            top: 12px;
-            right: 16px;
-            background: linear-gradient(135deg, #f59e0b, #fbbf24);
-            color: #000;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: 700;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-
-        .streak-badge.visible {
-            opacity: 1;
-        }
-
         .status-badge {
             position: absolute;
             top: 12px;
@@ -540,6 +522,7 @@
 
         .light .current-time {
             text-shadow: 0 0 40px rgba(255,107,53,0.15);
+            color: #1c1917;
         }
 
         .current-time.paused {
@@ -555,8 +538,7 @@
         }
 
         .light .time-fast {
-            color: #ffffff;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.45);
+            color: #1c1917;
         }
 
         .time-mid {
@@ -1102,7 +1084,6 @@
 
     <div class="main-display">
         <div class="status-badge" id="statusBadge">ON TRACK</div>
-        <div class="streak-badge" id="streakBadge">STREAK x0</div>
         <div class="current-label">Current Delivery</div>
         <div class="current-time" id="currentTime">0:00</div>
         <div class="delivery-count">Delivery <span id="deliveryNum">#1</span></div>
@@ -1152,7 +1133,6 @@
         let hasStarted = false;
         let deliveries = [];
         let intervalId = null;
-        let fastStreak = 0;
         let bestTime = Infinity;
         let isDark = true;
         let soundEnabled = true;
@@ -1184,7 +1164,6 @@
         const progressFill = $('progressFill');
         const progressLeft = $('progressLeft');
         const progressPercent = $('progressPercent');
-        const streakBadge = $('streakBadge');
         const statusBadge = $('statusBadge');
         const paceCurrentEl = $('paceCurrentEl');
         const paceNeededEl = $('paceNeededEl');
@@ -1471,9 +1450,6 @@
             updatePaceNeeded();
             updateProgress();
 
-            streakBadge.textContent = `STREAK x${fastStreak}`;
-            streakBadge.classList.toggle('visible', fastStreak >= 2);
-
             undoBtn.disabled = deliveries.length === 0;
             
             // Show done button once session has started
@@ -1563,19 +1539,12 @@
             playDeliverySound();
 
             splitTimes.forEach(time => {
-                const isFast = time < 90;
                 const isNewRecord = time < bestTime && hadPrevious;
                 
                 if (time < bestTime) {
                     bestTime = time;
                 }
                 
-                if (isFast) {
-                    fastStreak++;
-                } else {
-                    fastStreak = 0;
-                }
-
                 if (isNewRecord) {
                     hitNewRecord = true;
                 }
@@ -1616,15 +1585,6 @@
                 bestTime = Infinity;
             }
             
-            fastStreak = 0;
-            for (let i = deliveries.length - 1; i >= 0; i--) {
-                if (deliveries[i] < 90) {
-                    fastStreak++;
-                } else {
-                    break;
-                }
-            }
-
             updateDisplay();
             updateHistory();
 
@@ -1706,7 +1666,6 @@
             currentSeconds = 0;
             totalSeconds = 0;
             deliveries = [];
-            fastStreak = 0;
             bestTime = Infinity;
             isRunning = false;
             hasStarted = false;
@@ -1716,7 +1675,6 @@
             pauseBtn.classList.remove('paused');
             pauseBtn.classList.add('hidden');
             currentTimeEl.classList.remove('paused', 'flash-green');
-            streakBadge.classList.remove('visible');
             statusBadge.classList.remove('visible');
             startBtn.classList.remove('hidden');
             deliveredBtn.classList.add('hidden');
