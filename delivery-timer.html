@@ -1,0 +1,2235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Delivery Tracker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            min-height: 100vh;
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            user-select: none;
+            transition: color 0.3s;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: -1;
+            transition: background 0.3s;
+        }
+
+        body.dark::before {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        }
+
+        body.light::before {
+            background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+        }
+
+        body.dark {
+            color: white;
+        }
+
+        body.light {
+            color: #1c1917;
+        }
+
+        .header {
+            padding: 10px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .dark .header {
+            background: rgba(255,255,255,0.05);
+        }
+
+        .light .header {
+            background: rgba(234,88,12,0.1);
+        }
+
+        .header h1 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #ff6b35;
+            flex: 1;
+            cursor: pointer;
+            user-select: none;
+            transition: opacity 0.2s;
+        }
+
+        .header h1:active {
+            opacity: 0.7;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-done {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            letter-spacing: 0.5px;
+            display: none;
+        }
+
+        .btn-done.visible {
+            display: block;
+        }
+
+        .btn-done:active {
+            opacity: 0.8;
+        }
+
+        .icon-toggle {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 4px 8px;
+            opacity: 0.9;
+        }
+
+        .icon-toggle.muted {
+            opacity: 0.4;
+        }
+
+        .stats-bar {
+            display: flex;
+            align-items: center;
+            font-size: 13px;
+            padding: 10px 12px;
+            gap: 8px;
+        }
+
+        .dark .stats-bar {
+            background: rgba(0,0,0,0.4);
+        }
+
+        .light .stats-bar {
+            background: rgba(234,88,12,0.18);
+        }
+
+        .btn-action {
+            border: none;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+
+        .btn-undo {
+            background: rgba(59,130,246,0.7);
+            color: white;
+        }
+
+        .dark .btn-undo {
+            background: rgba(59,130,246,0.7);
+        }
+
+        .light .btn-undo {
+            background: rgba(59,130,246,0.9);
+        }
+
+        .btn-undo:active {
+            background: rgba(59,130,246,0.9);
+        }
+
+        .btn-undo:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .btn-reset {
+            background: rgba(239,68,68,0.7);
+            color: white;
+        }
+
+        .light .btn-reset {
+            background: rgba(239,68,68,0.85);
+        }
+
+        .btn-reset:active {
+            background: rgba(239,68,68,0.9);
+        }
+
+        .stats-center {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .stat {
+            padding: 6px 12px;
+            border-radius: 20px;
+        }
+
+        .dark .stat {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .light .stat {
+            background: rgba(234,88,12,0.12);
+        }
+
+        .stat-value {
+            font-weight: 700;
+            font-size: 14px;
+            color: #4ade80;
+        }
+
+        .light .stat-value {
+            color: #16a34a;
+        }
+
+        .stat-label {
+            font-size: 10px;
+            opacity: 0.7;
+            margin-right: 4px;
+        }
+
+        .target-section {
+            padding: 10px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .dark .target-section {
+            background: rgba(255,255,255,0.03);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .light .target-section {
+            background: rgba(234,88,12,0.05);
+            border-bottom: 1px solid rgba(234,88,12,0.1);
+        }
+
+        .inputs-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .target-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .target-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .dark .target-label {
+            color: rgba(255,255,255,0.6);
+        }
+
+        .light .target-label {
+            color: rgba(0,0,0,0.5);
+        }
+
+        .target-input {
+            width: 54px;
+            padding: 6px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .dark .target-input {
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+
+        .light .target-input {
+            border: 1px solid rgba(234,88,12,0.3);
+            background: white;
+            color: #1c1917;
+        }
+
+        .target-input:focus {
+            outline: none;
+            border-color: #ff6b35;
+        }
+
+        .time-input {
+            width: 115px;
+            padding: 6px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .dark .time-input {
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.1);
+            color: white;
+            color-scheme: dark;
+        }
+
+        .light .time-input {
+            border: 1px solid rgba(234,88,12,0.3);
+            background: white;
+            color: #1c1917;
+        }
+
+        .time-input:focus {
+            outline: none;
+            border-color: #ff6b35;
+        }
+
+        .remaining-text {
+            font-size: 10px;
+        }
+
+        .dark .remaining-text {
+            color: rgba(255,255,255,0.5);
+        }
+
+        .light .remaining-text {
+            color: rgba(0,0,0,0.5);
+        }
+
+        .pace-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 28px;
+            padding: 8px 12px;
+            border-radius: 8px;
+        }
+
+        .dark .pace-row {
+            background: rgba(0,0,0,0.4);
+        }
+
+        .light .pace-row {
+            background: rgba(234,88,12,0.18);
+        }
+
+        .pace-box {
+            text-align: center;
+        }
+
+        .pace-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .dark .pace-label {
+            color: rgba(255,255,255,0.5);
+        }
+
+        .light .pace-label {
+            color: rgba(0,0,0,0.45);
+        }
+
+        .pace-value {
+            font-size: 20px;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .pace-current {
+            color: #4ade80;
+        }
+
+        .light .pace-current {
+            color: #16a34a;
+        }
+
+        .pace-needed {
+            color: #f59e0b;
+        }
+
+        .pace-ahead {
+            color: #4ade80;
+        }
+
+        .light .pace-ahead {
+            color: #16a34a;
+        }
+
+        .pace-behind {
+            color: #ef4444;
+        }
+
+        .pace-estimate {
+            color: #60a5fa;
+        }
+
+        .light .pace-estimate {
+            color: #2563eb;
+        }
+
+        .progress-section {
+            padding: 6px 16px 10px;
+            display: none;
+        }
+
+        .dark .progress-section {
+            background: rgba(0,0,0,0.1);
+        }
+
+        .light .progress-section {
+            background: rgba(234,88,12,0.05);
+        }
+
+        .progress-section.visible {
+            display: block;
+        }
+
+        .progress-bar {
+            height: 6px;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .dark .progress-bar {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .light .progress-bar {
+            background: rgba(234,88,12,0.15);
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff6b35, #4ade80);
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            margin-top: 4px;
+        }
+
+        .dark .progress-text {
+            color: rgba(255,255,255,0.5);
+        }
+
+        .light .progress-text {
+            color: rgba(0,0,0,0.5);
+        }
+
+        .main-display {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 12px;
+            position: relative;
+        }
+
+        .status-badge {
+            position: absolute;
+            top: 12px;
+            left: 16px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 700;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .status-badge.visible {
+            opacity: 1;
+        }
+
+        .status-badge.ahead {
+            background: rgba(74,222,128,0.2);
+            color: #4ade80;
+        }
+
+        .light .status-badge.ahead {
+            background: rgba(22,163,74,0.15);
+            color: #16a34a;
+        }
+
+        .status-badge.behind {
+            background: rgba(239,68,68,0.2);
+            color: #ef4444;
+        }
+
+        .status-badge.on-track {
+            background: rgba(251,191,36,0.2);
+            color: #fbbf24;
+        }
+
+        .current-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 0;
+        }
+
+        .dark .current-label {
+            color: rgba(255,255,255,0.5);
+        }
+
+        .light .current-label {
+            color: rgba(0,0,0,0.45);
+        }
+
+        .current-time {
+            font-size: 100px;
+            font-weight: 200;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -4px;
+            line-height: 1;
+            transition: all 0.15s ease;
+        }
+
+        .dark .current-time {
+            text-shadow: 0 0 40px rgba(255,107,53,0.3);
+        }
+
+        .light .current-time {
+            text-shadow: 0 0 40px rgba(255,107,53,0.15);
+            color: #1c1917;
+        }
+
+        .current-time.paused {
+            opacity: 0.4;
+        }
+
+        .current-time.flash-green {
+            animation: flashGreen 0.6s ease;
+        }
+
+        .time-fast {
+            color: #ffffff;
+        }
+
+        .light .time-fast {
+            color: #1c1917;
+        }
+
+        .time-mid {
+            color: #4ade80;
+        }
+
+        .light .time-mid {
+            color: #16a34a;
+        }
+
+        .time-yellow {
+            color: #fbbf24;
+        }
+
+        .light .time-yellow {
+            color: #f59e0b;
+        }
+
+        .time-slow {
+            color: #ef4444;
+        }
+
+        .light .time-slow {
+            color: #dc2626;
+        }
+
+        @keyframes flashGreen {
+            0%, 100% { 
+                text-shadow: 0 0 40px rgba(255,107,53,0.3);
+            }
+            50% { 
+                text-shadow: 0 0 80px rgba(74,222,128,1), 0 0 120px rgba(74,222,128,0.6);
+                color: #4ade80;
+            }
+        }
+
+        .delivery-count {
+            margin-top: 4px;
+            font-size: 20px;
+        }
+
+        .dark .delivery-count {
+            color: rgba(255,255,255,0.7);
+        }
+
+        .light .delivery-count {
+            color: rgba(0,0,0,0.6);
+        }
+
+        .delivery-count span {
+            color: #ff6b35;
+            font-weight: 700;
+        }
+
+        .total-section {
+            margin-top: 16px;
+            text-align: center;
+        }
+
+        .total-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .dark .total-label {
+            color: rgba(255,255,255,0.4);
+        }
+
+        .light .total-label {
+            color: rgba(0,0,0,0.4);
+        }
+
+        .total-time {
+            font-size: 24px;
+            font-weight: 300;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .dark .total-time {
+            color: rgba(255,255,255,0.85);
+        }
+
+        .light .total-time {
+            color: rgba(0,0,0,0.75);
+        }
+
+        .history-section {
+            max-height: 110px;
+            overflow-y: auto;
+            padding: 0 16px;
+            margin-bottom: 8px;
+        }
+
+        .history-title {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+            position: sticky;
+            top: 0;
+            padding: 2px 0;
+        }
+
+        .dark .history-title {
+            color: rgba(255,255,255,0.4);
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        }
+
+        .light .history-title {
+            color: rgba(0,0,0,0.4);
+            background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+        }
+
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .history-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            border-left: 3px solid #4ade80;
+        }
+
+        .dark .history-item {
+            background: rgba(74,222,128,0.12);
+        }
+
+        .light .history-item {
+            background: rgba(74,222,128,0.15);
+        }
+
+        .history-item.long {
+            border-left-color: #ef4444;
+        }
+
+        .dark .history-item.long {
+            background: rgba(239,68,68,0.12);
+        }
+
+        .light .history-item.long {
+            background: rgba(239,68,68,0.12);
+        }
+
+        .history-item .num {
+            color: #ff6b35;
+            font-weight: 600;
+            min-width: 28px;
+        }
+
+        .history-item .time {
+            font-variant-numeric: tabular-nums;
+            font-weight: 500;
+        }
+
+        .history-item .rate {
+            font-size: 11px;
+        }
+
+        .dark .history-item .rate {
+            color: rgba(255,255,255,0.5);
+        }
+
+        .light .history-item .rate {
+            color: rgba(0,0,0,0.5);
+        }
+
+        .empty-history {
+            text-align: center;
+            font-size: 13px;
+            padding: 16px;
+        }
+
+        .dark .empty-history {
+            color: rgba(255,255,255,0.25);
+        }
+
+        .light .empty-history {
+            color: rgba(0,0,0,0.3);
+        }
+
+        .controls {
+            padding: 12px 16px 16px;
+        }
+
+        .dark .controls {
+            background: rgba(0,0,0,0.25);
+        }
+
+        .light .controls {
+            background: rgba(234,88,12,0.1);
+        }
+
+        .split-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 0;
+            margin: 0 auto 10px;
+            width: fit-content;
+        }
+
+        .split-row.hidden {
+            display: none;
+        }
+
+        .split-btn {
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            color: inherit;
+        }
+
+        .dark .split-btn {
+            background: rgba(255,255,255,0.15);
+        }
+
+        .light .split-btn {
+            background: rgba(0,0,0,0.12);
+        }
+
+        .split-btn:active {
+            transform: scale(0.96);
+        }
+
+        .split-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .split-value {
+            min-width: 32px;
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+            font-size: 16px;
+            font-weight: 700;
+            color: #ff6b35;
+        }
+
+        .light .split-value {
+            color: #ea580c;
+        }
+
+        .btn {
+            border: none;
+            border-radius: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.1s, opacity 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            letter-spacing: 0.5px;
+        }
+
+        .btn:active {
+            transform: scale(0.97);
+        }
+
+        .btn-pause {
+            width: 100%;
+            height: 50px;
+            color: white;
+            font-size: 15px;
+            margin-bottom: 12px;
+        }
+
+        .dark .btn-pause {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .light .btn-pause {
+            background: rgba(0,0,0,0.15);
+        }
+
+        .btn-pause:active {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .btn-pause.paused {
+            background: #4ade80;
+            color: #000;
+        }
+
+        .btn-pause.hidden {
+            display: none;
+        }
+
+        .btn-main {
+            width: 100%;
+            height: 140px;
+            color: white;
+            font-size: 32px;
+            border-radius: 24px;
+        }
+
+        .btn-start {
+            background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+            box-shadow: 0 8px 32px rgba(74,222,128,0.4);
+        }
+
+        .btn-start:active {
+            box-shadow: 0 4px 16px rgba(74,222,128,0.3);
+            background: linear-gradient(135deg, #3dd673 0%, #1eb350 100%);
+        }
+
+        .btn-delivered {
+            background: linear-gradient(135deg, #ff6b35 0%, #ff8c42 100%);
+            box-shadow: 0 8px 32px rgba(255,107,53,0.4);
+        }
+
+        .btn-delivered:active {
+            box-shadow: 0 4px 16px rgba(255,107,53,0.3);
+            background: linear-gradient(135deg, #e85a2a 0%, #e87a35 100%);
+        }
+
+        .btn-main.hidden {
+            display: none;
+        }
+
+        .confirm-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            padding: 20px;
+        }
+
+        .confirm-overlay.visible {
+            display: flex;
+        }
+
+        .confirm-box {
+            background: #1a1a2e;
+            border-radius: 20px;
+            padding: 24px;
+            text-align: center;
+            max-width: 300px;
+            width: 100%;
+        }
+
+        .light .confirm-box {
+            background: white;
+        }
+
+        .confirm-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .confirm-text {
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        .dark .confirm-text {
+            color: rgba(255,255,255,0.6);
+        }
+
+        .light .confirm-text {
+            color: rgba(0,0,0,0.6);
+        }
+
+        .confirm-buttons {
+            display: flex;
+            gap: 12px;
+        }
+
+        .confirm-btn {
+            flex: 1;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+        }
+
+        .confirm-cancel {
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+
+        .light .confirm-cancel {
+            background: rgba(0,0,0,0.1);
+            color: #1c1917;
+        }
+
+        .confirm-yes {
+            background: #ef4444;
+            color: white;
+        }
+
+        .confirm-done {
+            background: #22c55e;
+            color: white;
+        }
+
+        .new-record {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #fbbf24, #f59e0b);
+            color: #000;
+            padding: 16px 32px;
+            border-radius: 16px;
+            font-size: 18px;
+            font-weight: 700;
+            z-index: 50;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        .new-record.visible {
+            opacity: 1;
+            animation: popIn 0.5s ease;
+        }
+
+        @keyframes popIn {
+            0% { transform: translate(-50%, -50%) scale(0.5); }
+            50% { transform: translate(-50%, -50%) scale(1.1); }
+            100% { transform: translate(-50%, -50%) scale(1); }
+        }
+
+        .summary-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 16px;
+            text-align: left;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+        }
+
+        .summary-row .label {
+            opacity: 0.7;
+        }
+
+        .summary-row .value {
+            font-weight: 600;
+            color: #4ade80;
+        }
+
+        .btn-stats {
+            background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-stats:active {
+            opacity: 0.8;
+        }
+
+        .stats-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            display: none;
+            flex-direction: column;
+            z-index: 100;
+            padding: 16px;
+            overflow-y: auto;
+        }
+
+        .stats-overlay.visible {
+            display: flex;
+        }
+
+        .stats-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .stats-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #60a5fa;
+        }
+
+        .stats-close {
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        .light .stats-close {
+            background: rgba(0,0,0,0.1);
+            color: #1c1917;
+        }
+
+        .stats-actions {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .stats-action-btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+        }
+
+        .stats-save-btn {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            color: white;
+        }
+
+        .stats-clear-btn {
+            background: rgba(239,68,68,0.7);
+            color: white;
+        }
+
+        .stats-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .stats-empty {
+            text-align: center;
+            padding: 40px 20px;
+            opacity: 0.5;
+            font-size: 14px;
+        }
+
+        .stats-session {
+            background: rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .light .stats-session {
+            background: rgba(0,0,0,0.06);
+        }
+
+        .stats-session:active {
+            background: rgba(255,255,255,0.15);
+        }
+
+        .light .stats-session:active {
+            background: rgba(0,0,0,0.1);
+        }
+
+        .stats-session-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .stats-session-date {
+            font-size: 14px;
+            font-weight: 600;
+            color: #ff6b35;
+        }
+
+        .stats-session-deliveries {
+            font-size: 13px;
+            font-weight: 700;
+            color: #4ade80;
+        }
+
+        .light .stats-session-deliveries {
+            color: #16a34a;
+        }
+
+        .stats-session-details {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            opacity: 0.7;
+        }
+
+        .stats-session-expanded {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            display: none;
+        }
+
+        .light .stats-session-expanded {
+            border-top-color: rgba(0,0,0,0.1);
+        }
+
+        .stats-session.expanded .stats-session-expanded {
+            display: block;
+        }
+
+        .stats-detail-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            padding: 4px 0;
+        }
+
+        .stats-detail-row .label {
+            opacity: 0.6;
+        }
+
+        .stats-detail-row .value {
+            font-weight: 600;
+            color: #4ade80;
+        }
+
+        .light .stats-detail-row .value {
+            color: #16a34a;
+        }
+
+        /* Minimal Mode Styles */
+        .minimal-mode .btn-stats {
+            display: none;
+        }
+
+        .minimal-mode .btn-done {
+            display: none !important;
+        }
+
+        .minimal-mode #soundToggle {
+            display: none;
+        }
+
+        .minimal-mode .stats-bar {
+            display: none;
+        }
+
+        .minimal-mode .inputs-row {
+            display: none;
+        }
+
+        .minimal-mode .pace-label {
+            font-size: 13px;
+        }
+
+        .minimal-mode .pace-value {
+            font-size: 26px;
+        }
+
+        @media (max-height: 700px) {
+            .current-time { font-size: 80px; }
+            .history-section { max-height: 80px; }
+            .btn-main { height: 110px; font-size: 26px; }
+            .main-display { padding: 8px; }
+        }
+
+        @media (max-height: 600px) {
+            .current-time { font-size: 64px; }
+            .history-section { display: none; }
+            .btn-main { height: 90px; font-size: 24px; }
+        }
+    </style>
+</head>
+<body class="dark">
+    <div class="confirm-overlay" id="confirmOverlay">
+        <div class="confirm-box">
+            <div class="confirm-title" id="confirmTitle">Reset All Data?</div>
+            <div class="confirm-text" id="confirmText">This will clear all deliveries and times. This cannot be undone.</div>
+            <div class="summary-stats" id="summaryStats" style="display: none;"></div>
+            <div class="confirm-buttons" id="confirmButtons">
+                <button class="confirm-btn confirm-cancel" id="confirmCancel">Cancel</button>
+                <button class="confirm-btn confirm-yes" id="confirmYes">Reset</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="new-record" id="newRecord">NEW PERSONAL BEST</div>
+
+    <div class="stats-overlay" id="statsOverlay">
+        <div class="stats-header">
+            <div class="stats-title">Session History</div>
+            <button class="stats-close" id="statsClose">×</button>
+        </div>
+        <div class="stats-actions">
+            <button class="stats-action-btn stats-save-btn" id="statsSaveBtn">SAVE CURRENT</button>
+            <button class="stats-action-btn stats-clear-btn" id="statsClearBtn">CLEAR ALL</button>
+        </div>
+        <div class="stats-list" id="statsList">
+            <div class="stats-empty">No saved sessions yet</div>
+        </div>
+    </div>
+
+    <div class="header">
+        <h1>Delivery Tracker</h1>
+        <div class="header-controls">
+            <button class="btn-stats" id="statsBtn">STATS</button>
+            <button class="btn-done" id="doneBtn">DONE</button>
+            <button class="icon-toggle" id="soundToggle">🔊</button>
+            <button class="icon-toggle" id="themeToggle">🌙</button>
+        </div>
+    </div>
+
+    <div class="stats-bar">
+        <button class="btn-action btn-undo" id="undoBtn" disabled>UNDO</button>
+        <div class="stats-center">
+            <div class="stat"><span class="stat-label">Rate</span><span class="stat-value" id="perHour">0.0</span></div>
+            <div class="stat"><span class="stat-label">Avg</span><span class="stat-value" id="avgTime">--:--</span></div>
+            <div class="stat"><span class="stat-label">Best</span><span class="stat-value" id="bestTime">--:--</span></div>
+        </div>
+        <button class="btn-action btn-reset" id="resetBtn">RESET</button>
+    </div>
+
+    <div class="target-section">
+        <div class="inputs-row">
+            <div class="target-group">
+                <span class="target-label">Stops:</span>
+                <input type="number" class="target-input" id="targetInput" value="" placeholder="0" min="0" max="999" inputmode="numeric" pattern="[0-9]*">
+                <span class="remaining-text" id="remainingLabel"></span>
+            </div>
+            <div class="target-group">
+                <span class="target-label">Finish by:</span>
+                <input type="time" class="time-input" id="finishTimeInput">
+            </div>
+        </div>
+        <div class="pace-row">
+            <div class="pace-box">
+                <div class="pace-label">Recent</div>
+                <div class="pace-value pace-current" id="paceCurrentEl">--</div>
+            </div>
+            <div class="pace-box">
+                <div class="pace-label">Est. Finish</div>
+                <div class="pace-value pace-estimate" id="estimateTime">--:--</div>
+            </div>
+            <div class="pace-box">
+                <div class="pace-label">Need</div>
+                <div class="pace-value" id="paceNeededEl">--</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="progress-section" id="progressSection">
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="progress-text">
+            <span id="progressLeft">0 remaining</span>
+            <span id="progressPercent">0%</span>
+        </div>
+    </div>
+
+    <div class="main-display">
+        <div class="status-badge" id="statusBadge">ON TRACK</div>
+        <div class="current-label">Current Delivery</div>
+        <div class="current-time" id="currentTime">0:00</div>
+        <div class="delivery-count">Delivery <span id="deliveryNum">#1</span></div>
+        <div class="total-section">
+            <div class="total-label">Total Time</div>
+            <div class="total-time" id="totalTime">0:00:00</div>
+        </div>
+    </div>
+
+    <div class="history-section">
+        <div class="history-title">Recent Deliveries</div>
+        <div class="history-list" id="historyList">
+            <div class="empty-history">No deliveries yet</div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="btn btn-pause hidden" id="pauseBtn">PAUSE</button>
+        <div class="split-row hidden" id="splitRow">
+            <button class="split-btn" id="splitMinus" aria-label="Decrease stops">-</button>
+            <span class="split-value" id="splitValue">1</span>
+            <button class="split-btn" id="splitPlus" aria-label="Increase stops">+</button>
+        </div>
+        <button class="btn btn-main btn-start" id="startBtn">START</button>
+        <button class="btn btn-main btn-delivered hidden" id="deliveredBtn">DELIVERED</button>
+    </div>
+
+    <script>
+        // Suppress console warnings
+        (function() {
+            const originalWarn = console.warn;
+            const originalLog = console.log;
+            console.warn = function(...args) {
+                if (args[0] && typeof args[0] === 'string' && args[0].includes('touch')) return;
+                originalWarn.apply(console, args);
+            };
+            console.log = function(...args) {
+                if (args[0] && typeof args[0] === 'string' && args[0].includes('touch')) return;
+                originalLog.apply(console, args);
+            };
+        })();
+
+        // State variables
+        let currentSeconds = 0;
+        let totalSeconds = 0;
+        let isRunning = false;
+        let hasStarted = false;
+        let deliveries = [];
+        let intervalId = null;
+        let bestTime = Infinity;
+        let isDark = true;
+        let soundEnabled = true;
+        let audioContext = null;
+        let splitCount = 1;
+        let isMinimalMode = false;
+
+        const MIN_SPLIT_COUNT = 1;
+        const MAX_SPLIT_COUNT = 99;
+
+        // DOM elements
+        const $ = id => document.getElementById(id);
+        const currentTimeEl = $('currentTime');
+        const totalTimeEl = $('totalTime');
+        const deliveryNumEl = $('deliveryNum');
+        const perHourEl = $('perHour');
+        const avgTimeEl = $('avgTime');
+        const bestTimeEl = $('bestTime');
+        const historyListEl = $('historyList');
+        const pauseBtn = $('pauseBtn');
+        const resetBtn = $('resetBtn');
+        const undoBtn = $('undoBtn');
+        const startBtn = $('startBtn');
+        const deliveredBtn = $('deliveredBtn');
+        const doneBtn = $('doneBtn');
+        const targetInput = $('targetInput');
+        const finishTimeInput = $('finishTimeInput');
+        const remainingLabel = $('remainingLabel');
+        const progressSection = $('progressSection');
+        const progressFill = $('progressFill');
+        const progressLeft = $('progressLeft');
+        const progressPercent = $('progressPercent');
+        const statusBadge = $('statusBadge');
+        const paceCurrentEl = $('paceCurrentEl');
+        const paceNeededEl = $('paceNeededEl');
+        const confirmOverlay = $('confirmOverlay');
+        const confirmCancel = $('confirmCancel');
+        const confirmYes = $('confirmYes');
+        const confirmTitle = $('confirmTitle');
+        const confirmText = $('confirmText');
+        const confirmButtons = $('confirmButtons');
+        const summaryStats = $('summaryStats');
+        const newRecord = $('newRecord');
+        const themeToggle = $('themeToggle');
+        const soundToggle = $('soundToggle');
+        const estimateTime = $('estimateTime');
+        const splitRow = $('splitRow');
+        const splitMinus = $('splitMinus');
+        const splitPlus = $('splitPlus');
+        const splitValue = $('splitValue');
+        const statsBtn = $('statsBtn');
+        const statsOverlay = $('statsOverlay');
+        const statsClose = $('statsClose');
+        const statsSaveBtn = $('statsSaveBtn');
+        const statsClearBtn = $('statsClearBtn');
+        const statsList = $('statsList');
+        const titleEl = document.querySelector('.header h1');
+
+        // Initialize audio context
+        function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            return audioContext;
+        }
+
+        // Play delivery completion sound
+        function playDeliverySound() {
+            if (!soundEnabled) return;
+            
+            try {
+                const ctx = initAudio();
+                if (ctx.state === 'suspended') {
+                    ctx.resume();
+                }
+                
+                const now = ctx.currentTime;
+                
+                // Create a neutral short beep
+                const oscillator = ctx.createOscillator();
+                const gainNode = ctx.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(ctx.destination);
+                
+                oscillator.frequency.setValueAtTime(440, now);
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+                
+                oscillator.start(now);
+                oscillator.stop(now + 0.18);
+            } catch (e) {
+                // Silently fail if audio doesn't work
+            }
+        }
+
+        // Format seconds to MM:SS or H:MM:SS
+        function formatTime(seconds, includeHours = false) {
+            const hrs = Math.floor(seconds / 3600);
+            const mins = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+            if (includeHours || hrs > 0) {
+                return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // Format Date to 12-hour AM/PM format
+        function formatTimeAMPM(date) {
+            let hours = date.getHours();
+            const mins = date.getMinutes();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12;
+            return `${hours}:${mins.toString().padStart(2, '0')} ${ampm}`;
+        }
+
+        function getTimeClass(seconds) {
+            if (seconds < 90) return 'time-fast';
+            if (seconds < 180) return 'time-mid';
+            if (seconds <= 360) return 'time-yellow';
+            return 'time-slow';
+        }
+
+        // Get target stop count from input
+        function getTarget() {
+            const val = parseInt(targetInput.value);
+            return isNaN(val) || val < 0 ? 0 : val;
+        }
+
+        // Update split count controls
+        function updateSplitControls() {
+            if (!splitRow) return;
+            splitValue.textContent = splitCount.toString();
+            splitMinus.disabled = splitCount <= MIN_SPLIT_COUNT;
+            splitPlus.disabled = splitCount >= MAX_SPLIT_COUNT;
+            splitRow.classList.toggle('hidden', !hasStarted);
+        }
+
+        function setSplitCount(value) {
+            const clamped = Math.max(MIN_SPLIT_COUNT, Math.min(MAX_SPLIT_COUNT, value));
+            splitCount = clamped;
+            updateSplitControls();
+        }
+
+        function splitDeliveryTimes(totalSeconds, count) {
+            const safeCount = Math.max(MIN_SPLIT_COUNT, Math.min(count, Math.max(totalSeconds, MIN_SPLIT_COUNT)));
+            const base = Math.floor(totalSeconds / safeCount);
+            const remainder = totalSeconds % safeCount;
+            const times = [];
+            for (let i = 0; i < safeCount; i++) {
+                times.push(base + (i < remainder ? 1 : 0));
+            }
+            return times;
+        }
+
+        // Get finish time as Date object
+        function getFinishTime() {
+            const val = finishTimeInput.value;
+            if (!val) return null;
+            const [hrs, mins] = val.split(':').map(Number);
+            if (isNaN(hrs) || isNaN(mins)) return null;
+            const target = new Date();
+            target.setHours(hrs, mins, 0, 0);
+            if (target < new Date()) {
+                target.setDate(target.getDate() + 1);
+            }
+            return target;
+        }
+
+        // Calculate sum of all delivery times
+        function getDeliveryTimeSum() {
+            return deliveries.reduce((sum, time) => sum + time, 0);
+        }
+
+        // Calculate overall rate (deliveries per hour) based on total elapsed time
+        function getOverallRate() {
+            if (deliveries.length === 0 || totalSeconds === 0) return 0;
+            const hours = totalSeconds / 3600;
+            return deliveries.length / hours;
+        }
+
+        // Calculate rate for last N deliveries
+        function getRecentRate(n = 7) {
+            if (deliveries.length === 0) return 0;
+            const recentDeliveries = deliveries.slice(-n);
+            const recentTime = recentDeliveries.reduce((sum, time) => sum + time, 0);
+            if (recentTime === 0) return 0;
+            const hours = recentTime / 3600;
+            return recentDeliveries.length / hours;
+        }
+
+        // Calculate per-delivery rate (what rate would be if you kept this pace)
+        function getSingleDeliveryRate(seconds) {
+            if (seconds === 0) return 0;
+            const hours = seconds / 3600;
+            return 1 / hours;
+        }
+
+        // Update estimated finish time based on recent pace (last 7 deliveries)
+        function updateEstimate() {
+            const target = getTarget();
+            const remaining = target - deliveries.length;
+            const recentRate = getRecentRate(7);
+
+            if (target > 0 && remaining > 0 && recentRate > 0) {
+                const hoursNeeded = remaining / recentRate;
+                const msNeeded = hoursNeeded * 60 * 60 * 1000;
+                const finishDate = new Date(Date.now() + msNeeded);
+                estimateTime.textContent = formatTimeAMPM(finishDate);
+            } else if (target > 0 && remaining <= 0) {
+                estimateTime.textContent = 'DONE!';
+            } else {
+                estimateTime.textContent = '--:--';
+            }
+        }
+
+        // Update pace needed and status badge
+        function updatePaceNeeded() {
+            const target = getTarget();
+            const finishTime = getFinishTime();
+            const remaining = target - deliveries.length;
+            const recentRate = getRecentRate(7);
+
+            // Update remaining label
+            if (target > 0) {
+                remainingLabel.textContent = `(${Math.max(remaining, 0)} left)`;
+            } else {
+                remainingLabel.textContent = '';
+            }
+
+            // Calculate pace needed to finish on time
+            if (finishTime && target > 0 && remaining > 0) {
+                const msRemaining = finishTime - Date.now();
+                const hoursRemaining = msRemaining / (1000 * 60 * 60);
+                
+                if (hoursRemaining > 0) {
+                    const neededRate = remaining / hoursRemaining;
+                    paceNeededEl.textContent = neededRate.toFixed(1) + '/hr';
+                    
+                    if (recentRate >= neededRate) {
+                        paceNeededEl.classList.remove('pace-needed', 'pace-behind');
+                        paceNeededEl.classList.add('pace-ahead');
+                        statusBadge.textContent = 'AHEAD';
+                        statusBadge.classList.remove('behind', 'on-track');
+                        statusBadge.classList.add('ahead', 'visible');
+                    } else if (recentRate >= neededRate * 0.85) {
+                        paceNeededEl.classList.remove('pace-ahead', 'pace-behind');
+                        paceNeededEl.classList.add('pace-needed');
+                        statusBadge.textContent = 'ON TRACK';
+                        statusBadge.classList.remove('ahead', 'behind');
+                        statusBadge.classList.add('on-track', 'visible');
+                    } else {
+                        paceNeededEl.classList.remove('pace-ahead', 'pace-needed');
+                        paceNeededEl.classList.add('pace-behind');
+                        statusBadge.textContent = 'BEHIND';
+                        statusBadge.classList.remove('ahead', 'on-track');
+                        statusBadge.classList.add('behind', 'visible');
+                    }
+                } else {
+                    paceNeededEl.textContent = 'LATE';
+                    paceNeededEl.classList.remove('pace-ahead', 'pace-needed');
+                    paceNeededEl.classList.add('pace-behind');
+                    statusBadge.textContent = 'BEHIND';
+                    statusBadge.classList.remove('ahead', 'on-track');
+                    statusBadge.classList.add('behind', 'visible');
+                }
+            } else if (target > 0 && remaining <= 0) {
+                paceNeededEl.textContent = 'DONE';
+                paceNeededEl.classList.remove('pace-needed', 'pace-behind');
+                paceNeededEl.classList.add('pace-ahead');
+                statusBadge.classList.remove('visible');
+            } else {
+                paceNeededEl.textContent = '--';
+                paceNeededEl.classList.remove('pace-ahead', 'pace-needed', 'pace-behind');
+                statusBadge.classList.remove('visible');
+            }
+        }
+
+        // Update progress bar
+        function updateProgress() {
+            const target = getTarget();
+            if (target > 0) {
+                progressSection.classList.add('visible');
+                const percent = Math.min((deliveries.length / target) * 100, 100);
+                const remaining = Math.max(target - deliveries.length, 0);
+                progressFill.style.width = `${percent}%`;
+                progressLeft.textContent = `${remaining} remaining`;
+                progressPercent.textContent = `${Math.round(percent)}%`;
+            } else {
+                progressSection.classList.remove('visible');
+            }
+        }
+
+        // Main display update function
+        function updateDisplay() {
+            currentTimeEl.textContent = formatTime(currentSeconds);
+            totalTimeEl.textContent = formatTime(totalSeconds, true);
+            deliveryNumEl.textContent = `#${deliveries.length + 1}`;
+            currentTimeEl.classList.remove('time-fast', 'time-mid', 'time-yellow', 'time-slow');
+            currentTimeEl.classList.add(getTimeClass(currentSeconds));
+
+            const overallRate = getOverallRate();
+            const recentRate = getRecentRate(7);
+            
+            if (deliveries.length > 0 && totalSeconds > 0) {
+                perHourEl.textContent = overallRate.toFixed(1);
+                
+                const avgSeconds = Math.round(getDeliveryTimeSum() / deliveries.length);
+                avgTimeEl.textContent = formatTime(avgSeconds);
+                bestTimeEl.textContent = formatTime(bestTime);
+                
+                paceCurrentEl.textContent = recentRate.toFixed(1) + '/hr';
+            } else {
+                perHourEl.textContent = '0.0';
+                avgTimeEl.textContent = '--:--';
+                bestTimeEl.textContent = '--:--';
+                paceCurrentEl.textContent = '--';
+            }
+
+            updateEstimate();
+            updatePaceNeeded();
+            updateProgress();
+
+            undoBtn.disabled = deliveries.length === 0;
+            
+            // Show done button once session has started
+            doneBtn.classList.toggle('visible', hasStarted);
+            updateSplitControls();
+        }
+
+        // Update delivery history list
+        function updateHistory() {
+            if (deliveries.length === 0) {
+                historyListEl.innerHTML = '<div class="empty-history">No deliveries yet</div>';
+                return;
+            }
+
+            historyListEl.innerHTML = deliveries.slice().reverse().slice(0, 15).map((time, idx) => {
+                const num = deliveries.length - idx;
+                const singleRate = getSingleDeliveryRate(time);
+                const timeClass = getTimeClass(time);
+
+                return `<div class="history-item">
+                    <span class="num">#${num}</span>
+                    <span class="time ${timeClass}">${formatTime(time)}</span>
+                    <span class="rate">${singleRate.toFixed(1)}/hr</span>
+                </div>`;
+            }).join('');
+        }
+
+        // Timer tick function - called every second ALWAYS
+        function tick() {
+            // Total time always runs while session is active
+            totalSeconds++;
+            
+            // Current delivery time only runs when not paused
+            if (isRunning) {
+                currentSeconds++;
+            }
+            
+            updateDisplay();
+        }
+
+        // Start tracking session
+        function startSession() {
+            if (hasStarted) return; // Prevent starting multiple times
+            
+            hasStarted = true;
+            isRunning = true;
+            
+            // Initialize audio context on first user interaction
+            initAudio();
+            
+            startBtn.classList.add('hidden');
+            deliveredBtn.classList.remove('hidden');
+            pauseBtn.classList.remove('hidden');
+            
+            if (intervalId) {
+                clearInterval(intervalId); // Clear any existing interval
+            }
+            intervalId = setInterval(tick, 1000);
+            updateDisplay();
+        }
+
+        // Toggle pause/resume
+        function togglePause() {
+            if (isRunning) {
+                isRunning = false;
+                pauseBtn.textContent = 'RESUME';
+                pauseBtn.classList.add('paused');
+                currentTimeEl.classList.add('paused');
+            } else {
+                isRunning = true;
+                pauseBtn.textContent = 'PAUSE';
+                pauseBtn.classList.remove('paused');
+                currentTimeEl.classList.remove('paused');
+            }
+            updateDisplay();
+        }
+
+        // Record a delivery
+        function recordDelivery() {
+            if (currentSeconds === 0) return;
+
+            const splitTimes = splitDeliveryTimes(currentSeconds, splitCount);
+            const hadPrevious = deliveries.length > 0;
+            let hitNewRecord = false;
+
+            // Flash green animation
+            currentTimeEl.classList.remove('flash-green');
+            void currentTimeEl.offsetWidth;
+            currentTimeEl.classList.add('flash-green');
+
+            // Play sound
+            playDeliverySound();
+
+            splitTimes.forEach(time => {
+                const isNewRecord = time < bestTime && hadPrevious;
+                
+                if (time < bestTime) {
+                    bestTime = time;
+                }
+                
+                if (isNewRecord) {
+                    hitNewRecord = true;
+                }
+
+                deliveries.push(time);
+            });
+
+            if (hitNewRecord) {
+                newRecord.classList.add('visible');
+                setTimeout(() => newRecord.classList.remove('visible'), 2000);
+            }
+
+            currentSeconds = 0;
+
+            if (!isRunning) {
+                togglePause();
+            }
+
+            setSplitCount(1);
+            updateDisplay();
+            updateHistory();
+
+            if (navigator.vibrate) {
+                navigator.vibrate(30);
+            }
+        }
+
+        // Undo last delivery
+        function undoLast() {
+            if (deliveries.length === 0) return;
+
+            const lastDeliveryTime = deliveries.pop();
+            currentSeconds += lastDeliveryTime;
+            
+            if (deliveries.length > 0) {
+                bestTime = Math.min(...deliveries);
+            } else {
+                bestTime = Infinity;
+            }
+            
+            updateDisplay();
+            updateHistory();
+
+            if (navigator.vibrate) {
+                navigator.vibrate(20);
+            }
+        }
+
+        // Show reset confirmation dialog
+        function showResetConfirm() {
+            confirmTitle.textContent = 'Reset All Data?';
+            confirmText.textContent = 'This will clear all deliveries and times. This cannot be undone.';
+            summaryStats.style.display = 'none';
+            confirmButtons.innerHTML = `
+                <button class="confirm-btn confirm-cancel" id="confirmCancelBtn">Cancel</button>
+                <button class="confirm-btn confirm-yes" id="confirmYesBtn">Reset</button>
+            `;
+            confirmOverlay.classList.add('visible');
+            
+            // Re-attach event listeners
+            document.getElementById('confirmCancelBtn').addEventListener('click', hideResetConfirm);
+            document.getElementById('confirmYesBtn').addEventListener('click', resetAll);
+        }
+
+        // Show done confirmation with summary
+        function showDoneConfirm() {
+            const overallRate = getOverallRate();
+            const avgSeconds = deliveries.length > 0 ? Math.round(getDeliveryTimeSum() / deliveries.length) : 0;
+            
+            confirmTitle.textContent = 'Route Complete! 🎉';
+            confirmText.textContent = 'Here\'s your session summary:';
+            
+            summaryStats.style.display = 'flex';
+            summaryStats.innerHTML = `
+                <div class="summary-row">
+                    <span class="label">Total Deliveries</span>
+                    <span class="value">${deliveries.length}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="label">Total Time</span>
+                    <span class="value">${formatTime(totalSeconds, true)}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="label">Average Rate</span>
+                    <span class="value">${overallRate.toFixed(1)}/hr</span>
+                </div>
+                <div class="summary-row">
+                    <span class="label">Avg per Delivery</span>
+                    <span class="value">${formatTime(avgSeconds)}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="label">Best Time</span>
+                    <span class="value">${bestTime === Infinity ? '--:--' : formatTime(bestTime)}</span>
+                </div>
+            `;
+            
+            confirmButtons.innerHTML = `
+                <button class="confirm-btn confirm-cancel" id="confirmCancelBtn">Keep Going</button>
+                <button class="confirm-btn confirm-done" id="confirmDoneBtn">Finish & Reset</button>
+            `;
+            confirmOverlay.classList.add('visible');
+            
+            // Re-attach event listeners
+            document.getElementById('confirmCancelBtn').addEventListener('click', hideResetConfirm);
+            document.getElementById('confirmDoneBtn').addEventListener('click', finishRoute);
+        }
+
+        // Hide confirmation dialog
+        function hideResetConfirm() {
+            confirmOverlay.classList.remove('visible');
+        }
+
+        // Finish route and reset
+        function finishRoute() {
+            // Auto-save session before resetting
+            saveCurrentSession();
+            resetAll();
+        }
+
+        // Reset all data
+        function resetAll() {
+            hideResetConfirm();
+            
+            if (intervalId) {
+                clearInterval(intervalId);
+                intervalId = null;
+            }
+
+            currentSeconds = 0;
+            totalSeconds = 0;
+            deliveries = [];
+            bestTime = Infinity;
+            isRunning = false;
+            hasStarted = false;
+            splitCount = 1;
+
+            pauseBtn.textContent = 'PAUSE';
+            pauseBtn.classList.remove('paused');
+            pauseBtn.classList.add('hidden');
+            currentTimeEl.classList.remove('paused', 'flash-green');
+            statusBadge.classList.remove('visible');
+            startBtn.classList.remove('hidden');
+            deliveredBtn.classList.add('hidden');
+
+            perHourEl.textContent = '0.0';
+            avgTimeEl.textContent = '--:--';
+            bestTimeEl.textContent = '--:--';
+            paceCurrentEl.textContent = '--';
+            paceNeededEl.textContent = '--';
+            paceNeededEl.classList.remove('pace-ahead', 'pace-needed', 'pace-behind');
+            estimateTime.textContent = '--:--';
+
+            updateDisplay();
+            updateHistory();
+        }
+
+        // Toggle dark/light theme
+        function toggleTheme() {
+            isDark = !isDark;
+            document.body.classList.toggle('dark', isDark);
+            document.body.classList.toggle('light', !isDark);
+            themeToggle.textContent = isDark ? '🌙' : '☀️';
+            localStorage.setItem('deliveryTimerTheme', isDark ? 'dark' : 'light');
+        }
+
+        // Toggle sound
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            soundToggle.textContent = soundEnabled ? '🔊' : '🔇';
+            soundToggle.classList.toggle('muted', !soundEnabled);
+            localStorage.setItem('deliveryTimerSound', soundEnabled.toString());
+        }
+
+        // Toggle minimal mode
+        function toggleMinimalMode() {
+            isMinimalMode = !isMinimalMode;
+            document.body.classList.toggle('minimal-mode', isMinimalMode);
+            localStorage.setItem('deliveryTimerMinimalMode', isMinimalMode.toString());
+        }
+
+        // Session storage functions
+        const SESSIONS_KEY = 'deliveryTimerSessions';
+
+        function loadSessions() {
+            try {
+                const data = localStorage.getItem(SESSIONS_KEY);
+                return data ? JSON.parse(data) : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveSessions(sessions) {
+            try {
+                localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+            } catch (e) {
+                // Storage full or unavailable
+            }
+        }
+
+        function saveCurrentSession() {
+            if (deliveries.length === 0) return false;
+
+            const session = {
+                id: Date.now(),
+                date: new Date().toISOString(),
+                deliveries: deliveries.length,
+                totalSeconds: totalSeconds,
+                avgRate: getOverallRate(),
+                avgTime: Math.round(getDeliveryTimeSum() / deliveries.length),
+                bestTime: bestTime === Infinity ? null : bestTime
+            };
+
+            const sessions = loadSessions();
+            sessions.unshift(session); // Add to beginning
+            
+            // Keep only last 50 sessions
+            if (sessions.length > 50) {
+                sessions.length = 50;
+            }
+            
+            saveSessions(sessions);
+            return true;
+        }
+
+        function clearAllSessions() {
+            localStorage.removeItem(SESSIONS_KEY);
+            renderStatsList();
+        }
+
+        function formatSessionDate(isoString) {
+            const date = new Date(isoString);
+            const today = new Date();
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+
+            const isToday = date.toDateString() === today.toDateString();
+            const isYesterday = date.toDateString() === yesterday.toDateString();
+
+            const timeStr = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+            if (isToday) {
+                return `Today ${timeStr}`;
+            } else if (isYesterday) {
+                return `Yesterday ${timeStr}`;
+            } else {
+                return date.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + timeStr;
+            }
+        }
+
+        function renderStatsList() {
+            const sessions = loadSessions();
+
+            if (sessions.length === 0) {
+                statsList.innerHTML = '<div class="stats-empty">No saved sessions yet</div>';
+                return;
+            }
+
+            statsList.innerHTML = sessions.map(session => `
+                <div class="stats-session" data-id="${session.id}">
+                    <div class="stats-session-header">
+                        <span class="stats-session-date">${formatSessionDate(session.date)}</span>
+                        <span class="stats-session-deliveries">${session.deliveries} stops</span>
+                    </div>
+                    <div class="stats-session-details">
+                        <span>${session.avgRate.toFixed(1)}/hr</span>
+                        <span>${formatTime(session.totalSeconds, true)}</span>
+                    </div>
+                    <div class="stats-session-expanded">
+                        <div class="stats-detail-row">
+                            <span class="label">Total Deliveries</span>
+                            <span class="value">${session.deliveries}</span>
+                        </div>
+                        <div class="stats-detail-row">
+                            <span class="label">Total Time</span>
+                            <span class="value">${formatTime(session.totalSeconds, true)}</span>
+                        </div>
+                        <div class="stats-detail-row">
+                            <span class="label">Average Rate</span>
+                            <span class="value">${session.avgRate.toFixed(1)}/hr</span>
+                        </div>
+                        <div class="stats-detail-row">
+                            <span class="label">Avg per Delivery</span>
+                            <span class="value">${formatTime(session.avgTime)}</span>
+                        </div>
+                        <div class="stats-detail-row">
+                            <span class="label">Best Time</span>
+                            <span class="value">${session.bestTime ? formatTime(session.bestTime) : '--:--'}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            // Add click handlers to toggle expanded view
+            statsList.querySelectorAll('.stats-session').forEach(el => {
+                el.addEventListener('click', () => {
+                    el.classList.toggle('expanded');
+                });
+            });
+        }
+
+        function showStatsModal() {
+            renderStatsList();
+            statsOverlay.classList.add('visible');
+        }
+
+        function hideStatsModal() {
+            statsOverlay.classList.remove('visible');
+        }
+
+        // Event listeners
+        pauseBtn.addEventListener('click', togglePause);
+        resetBtn.addEventListener('click', showResetConfirm);
+        undoBtn.addEventListener('click', undoLast);
+        doneBtn.addEventListener('click', showDoneConfirm);
+        statsBtn.addEventListener('click', showStatsModal);
+        statsClose.addEventListener('click', hideStatsModal);
+        statsSaveBtn.addEventListener('click', () => {
+            if (saveCurrentSession()) {
+                renderStatsList();
+            }
+        });
+        statsClearBtn.addEventListener('click', () => {
+            if (confirm('Clear all saved sessions?')) {
+                clearAllSessions();
+            }
+        });
+        statsOverlay.addEventListener('click', (e) => {
+            if (e.target === statsOverlay) {
+                hideStatsModal();
+            }
+        });
+        targetInput.addEventListener('input', updateDisplay);
+        finishTimeInput.addEventListener('input', updateDisplay);
+        themeToggle.addEventListener('click', toggleTheme);
+        soundToggle.addEventListener('click', toggleSound);
+        splitMinus.addEventListener('click', () => setSplitCount(splitCount - 1));
+        splitPlus.addEventListener('click', () => setSplitCount(splitCount + 1));
+
+        // Minimal mode toggle on title click
+        let titleTouchHandled = false;
+        if (titleEl) {
+            titleEl.addEventListener('touchstart', function(e) {
+                titleTouchHandled = true;
+                e.preventDefault();
+                toggleMinimalMode();
+                setTimeout(() => { titleTouchHandled = false; }, 300);
+            }, { passive: false });
+
+            titleEl.addEventListener('click', function(e) {
+                if (titleTouchHandled) {
+                    e.preventDefault();
+                    return;
+                }
+                toggleMinimalMode();
+            });
+        }
+
+        // Touch event handlers to prevent double-firing on mobile
+        let startTouchHandled = false;
+        let deliveredTouchHandled = false;
+        
+        startBtn.addEventListener('touchstart', function(e) {
+            if (hasStarted) return; // Prevent starting twice
+            startTouchHandled = true;
+            e.preventDefault();
+            startSession();
+            setTimeout(() => { startTouchHandled = false; }, 300);
+        }, { passive: false });
+
+        startBtn.addEventListener('click', function(e) {
+            if (startTouchHandled) {
+                e.preventDefault();
+                return;
+            }
+            if (hasStarted) return; // Prevent starting twice
+            startSession();
+        });
+
+        deliveredBtn.addEventListener('touchstart', function(e) {
+            deliveredTouchHandled = true;
+            e.preventDefault();
+            recordDelivery();
+            setTimeout(() => { deliveredTouchHandled = false; }, 300);
+        }, { passive: false });
+
+        deliveredBtn.addEventListener('click', function(e) {
+            if (deliveredTouchHandled) {
+                e.preventDefault();
+                return;
+            }
+            recordDelivery();
+        });
+
+        confirmOverlay.addEventListener('click', function(e) {
+            if (e.target === confirmOverlay) {
+                hideResetConfirm();
+            }
+        });
+
+        // Cleanup interval on page unload to prevent memory leaks
+        window.addEventListener('beforeunload', function() {
+            if (intervalId) {
+                clearInterval(intervalId);
+            }
+        });
+
+        // Load saved preferences
+        if (localStorage.getItem('deliveryTimerTheme') === 'light') {
+            isDark = false;
+            document.body.classList.remove('dark');
+            document.body.classList.add('light');
+            themeToggle.textContent = '☀️';
+        }
+
+        if (localStorage.getItem('deliveryTimerSound') === 'false') {
+            soundEnabled = false;
+            soundToggle.textContent = '🔇';
+            soundToggle.classList.add('muted');
+        }
+
+        if (localStorage.getItem('deliveryTimerMinimalMode') === 'true') {
+            isMinimalMode = true;
+            document.body.classList.add('minimal-mode');
+        }
+
+        // Initial display update
+        updateDisplay();
+    </script>
+</body>
+</html>
