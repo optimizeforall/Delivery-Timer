@@ -1,0 +1,17 @@
+{
+  "name": "Delivery Tracker",
+  "install": "echo 'No dependencies to install: static HTML/CSS/JS site.'",
+  "terminals": [
+    {
+      "name": "web",
+      "command": "python3 -m http.server 8000 --bind 0.0.0.0",
+      "description": "Static file server for the Delivery Tracker app. Open http://localhost:8000/ to load index.html."
+    }
+  ],
+  "ports": [
+    {
+      "name": "web",
+      "port": 8000
+    }
+  ]
+}
