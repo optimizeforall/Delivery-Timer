@@ -863,7 +863,7 @@ function toggleTheme() {
 // Toggle sound
 function toggleSound() {
     soundEnabled = !soundEnabled;
-    soundToggle.textContent = soundEnabled ? 'ðŸ”Š' : 'ðŸ”‡';
+    soundToggle.textContent = soundEnabled ? '🔊' : '🔇';
     soundToggle.classList.toggle('muted', !soundEnabled);
     localStorage.setItem('deliveryTimerSound', soundEnabled.toString());
 }
@@ -1013,7 +1013,7 @@ if (localStorage.getItem('deliveryTimerTheme') === 'light') {
 
 if (localStorage.getItem('deliveryTimerSound') === 'false') {
     soundEnabled = false;
-    soundToggle.textContent = 'ðŸ”‡';
+    soundToggle.textContent = '🔇';
     soundToggle.classList.add('muted');
 }
 
