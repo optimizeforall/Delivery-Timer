@@ -54,7 +54,6 @@ const resetBtn = $('resetBtn');
 const undoBtn = $('undoBtn');
 const startBtn = $('startBtn');
 const deliveredBtn = $('deliveredBtn');
-const doneBtn = $('doneBtn');
 const targetInput = $('targetInput');
 const finishTimeInput = $('finishTimeInput');
 const remainingLabel = $('remainingLabel');
@@ -80,12 +79,6 @@ const splitRow = $('splitRow');
 const splitMinus = $('splitMinus');
 const splitPlus = $('splitPlus');
 const splitValue = $('splitValue');
-const statsBtn = $('statsBtn');
-const statsOverlay = $('statsOverlay');
-const statsClose = $('statsClose');
-const statsSaveBtn = $('statsSaveBtn');
-const statsClearBtn = $('statsClearBtn');
-const statsList = $('statsList');
 const titleEl = document.querySelector('.header h1');
 const addTimeBtn = $('addTimeBtn');
 
@@ -347,16 +340,6 @@ function refreshRateDisplays() {
     updateDisplay();
     updateHistory();
 
-    if (statsOverlay && statsOverlay.classList.contains('visible')) {
-        const expandedIds = [...statsList.querySelectorAll('.stats-session.expanded')]
-            .map(el => el.dataset.id);
-        renderStatsList();
-        expandedIds.forEach(id => {
-            const el = statsList.querySelector(`[data-id="${id}"]`);
-            if (el) el.classList.add('expanded');
-        });
-    }
-
     const summaryRate = summaryStats && summaryStats.querySelector('.rate-toggle');
     if (confirmOverlay.classList.contains('visible') && summaryRate) {
         summaryRate.textContent = formatRate(getOverallRate());
@@ -601,8 +584,6 @@ function updateDisplay() {
 
     undoBtn.disabled = deliveries.length === 0;
     
-    // Show done button once session has started
-    doneBtn.classList.toggle('visible', hasStarted);
     updateSplitControls();
 }
 
@@ -815,65 +796,9 @@ function showResetConfirm() {
     document.getElementById('confirmYesBtn').addEventListener('click', resetAll);
 }
 
-// Show done confirmation with summary
-function showDoneConfirm() {
-    // Calculate latest times before showing summary
-    calculateElapsedTimes();
-    
-    const overallRate = getOverallRate();
-    const avgSeconds = deliveries.length > 0 ? Math.round(getDeliveryTimeSum() / deliveries.length) : 0;
-    
-    confirmTitle.textContent = 'Route Complete! ðŸŽ‰';
-    confirmText.textContent = 'Here\'s your session summary:';
-    
-    summaryStats.style.display = 'flex';
-    summaryStats.innerHTML = `
-        <div class="summary-row">
-            <span class="label">Total Deliveries</span>
-            <span class="value">${deliveries.length}</span>
-        </div>
-        <div class="summary-row">
-            <span class="label">Total Time</span>
-            <span class="value">${formatTime(totalSeconds, true)}</span>
-        </div>
-        <div class="summary-row">
-            <span class="label">Average Rate</span>
-            <span class="value rate-toggle">${formatRate(overallRate)}</span>
-        </div>
-        <div class="summary-row">
-            <span class="label">Avg per Delivery</span>
-            <span class="value">${formatTime(avgSeconds)}</span>
-        </div>
-        <div class="summary-row">
-            <span class="label">Best Time</span>
-            <span class="value">${bestTime === Infinity ? '--:--' : formatTime(bestTime)}</span>
-        </div>
-    `;
-    
-    confirmButtons.innerHTML = `
-        <button class="confirm-btn confirm-cancel" id="confirmCancelBtn">Keep Going</button>
-        <button class="confirm-btn confirm-done" id="confirmDoneBtn">Finish & Reset</button>
-    `;
-    confirmOverlay.classList.add('visible');
-    
-    // Re-attach event listeners
-    document.getElementById('confirmCancelBtn').addEventListener('click', hideResetConfirm);
-    document.getElementById('confirmDoneBtn').addEventListener('click', finishRoute);
-    summaryStats.querySelectorAll('.rate-toggle').forEach(bindRateToggle);
-}
-
 // Hide confirmation dialog
 function hideResetConfirm() {
     confirmOverlay.classList.remove('visible');
-}
-
-// Finish route and reset
-function finishRoute() {
-    // Calculate final times before saving
-    calculateElapsedTimes();
-    // Auto-save session before resetting
-    saveCurrentSession();
-    resetAll();
 }
 
 // Reset all data
@@ -931,7 +856,7 @@ function toggleTheme() {
     isDark = !isDark;
     document.body.classList.toggle('dark', isDark);
     document.body.classList.toggle('light', !isDark);
-    themeToggle.textContent = isDark ? 'ðŸŒ™' : 'â˜€ï¸';
+    themeToggle.textContent = isDark ? '🌙' : '☀️';
     localStorage.setItem('deliveryTimerTheme', isDark ? 'dark' : 'light');
 }
 
@@ -950,162 +875,11 @@ function toggleMinimalMode() {
     localStorage.setItem('deliveryTimerMinimalMode', isMinimalMode.toString());
 }
 
-// Session storage functions
-const SESSIONS_KEY = 'deliveryTimerSessions';
-
-function loadSessions() {
-    try {
-        const data = localStorage.getItem(SESSIONS_KEY);
-        return data ? JSON.parse(data) : [];
-    } catch (e) {
-        return [];
-    }
-}
-
-function saveSessions(sessions) {
-    try {
-        localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
-    } catch (e) {
-        // Storage full or unavailable
-    }
-}
-
-function saveCurrentSession() {
-    if (deliveries.length === 0) return false;
-    
-    // Ensure we have the latest calculated times
-    calculateElapsedTimes();
-
-    const session = {
-        id: Date.now(),
-        date: new Date().toISOString(),
-        deliveries: deliveries.length,
-        totalSeconds: totalSeconds,
-        avgRate: getOverallRate(),
-        avgTime: Math.round(getDeliveryTimeSum() / deliveries.length),
-        bestTime: bestTime === Infinity ? null : bestTime
-    };
-
-    const sessions = loadSessions();
-    sessions.unshift(session); // Add to beginning
-    
-    // Keep only last 50 sessions
-    if (sessions.length > 50) {
-        sessions.length = 50;
-    }
-    
-    saveSessions(sessions);
-    return true;
-}
-
-function clearAllSessions() {
-    localStorage.removeItem(SESSIONS_KEY);
-    renderStatsList();
-}
-
-function formatSessionDate(isoString) {
-    const date = new Date(isoString);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    const isToday = date.toDateString() === today.toDateString();
-    const isYesterday = date.toDateString() === yesterday.toDateString();
-
-    const timeStr = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-
-    if (isToday) {
-        return `Today ${timeStr}`;
-    } else if (isYesterday) {
-        return `Yesterday ${timeStr}`;
-    } else {
-        return date.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + timeStr;
-    }
-}
-
-function renderStatsList() {
-    const sessions = loadSessions();
-
-    if (sessions.length === 0) {
-        statsList.innerHTML = '<div class="stats-empty">No saved sessions yet</div>';
-        return;
-    }
-
-    statsList.innerHTML = sessions.map(session => `
-        <div class="stats-session" data-id="${session.id}">
-            <div class="stats-session-header">
-                <span class="stats-session-date">${formatSessionDate(session.date)}</span>
-                <span class="stats-session-deliveries">${session.deliveries} stops</span>
-            </div>
-            <div class="stats-session-details">
-                <span class="rate-toggle">${formatRate(session.avgRate)}</span>
-                <span>${formatTime(session.totalSeconds, true)}</span>
-            </div>
-            <div class="stats-session-expanded">
-                <div class="stats-detail-row">
-                    <span class="label">Total Deliveries</span>
-                    <span class="value">${session.deliveries}</span>
-                </div>
-                <div class="stats-detail-row">
-                    <span class="label">Total Time</span>
-                    <span class="value">${formatTime(session.totalSeconds, true)}</span>
-                </div>
-                <div class="stats-detail-row">
-                    <span class="label">Average Rate</span>
-                    <span class="value rate-toggle">${formatRate(session.avgRate)}</span>
-                </div>
-                <div class="stats-detail-row">
-                    <span class="label">Avg per Delivery</span>
-                    <span class="value">${formatTime(session.avgTime)}</span>
-                </div>
-                <div class="stats-detail-row">
-                    <span class="label">Best Time</span>
-                    <span class="value">${session.bestTime ? formatTime(session.bestTime) : '--:--'}</span>
-                </div>
-            </div>
-        </div>
-    `).join('');
-
-    // Add click handlers to toggle expanded view
-    statsList.querySelectorAll('.stats-session').forEach(el => {
-        el.addEventListener('click', () => {
-            el.classList.toggle('expanded');
-        });
-    });
-}
-
-function showStatsModal() {
-    renderStatsList();
-    statsOverlay.classList.add('visible');
-}
-
-function hideStatsModal() {
-    statsOverlay.classList.remove('visible');
-}
-
 // Event listeners
 pauseBtn.addEventListener('click', togglePause);
 resetBtn.addEventListener('click', showResetConfirm);
 undoBtn.addEventListener('click', undoLast);
-doneBtn.addEventListener('click', showDoneConfirm);
 addTimeBtn.addEventListener('click', showAddTimeDialog);
-statsBtn.addEventListener('click', showStatsModal);
-statsClose.addEventListener('click', hideStatsModal);
-statsSaveBtn.addEventListener('click', () => {
-    if (saveCurrentSession()) {
-        renderStatsList();
-    }
-});
-statsClearBtn.addEventListener('click', () => {
-    if (confirm('Clear all saved sessions?')) {
-        clearAllSessions();
-    }
-});
-statsOverlay.addEventListener('click', (e) => {
-    if (e.target === statsOverlay) {
-        hideStatsModal();
-    }
-});
 targetInput.addEventListener('input', updateDisplay);
 finishTimeInput.addEventListener('input', updateDisplay);
 themeToggle.addEventListener('click', toggleTheme);
@@ -1136,8 +910,6 @@ function handleListRateToggle(e) {
 }
 historyListEl.addEventListener('touchstart', handleListRateToggle, { passive: false });
 historyListEl.addEventListener('click', handleListRateToggle);
-statsList.addEventListener('touchstart', handleListRateToggle, { passive: false });
-statsList.addEventListener('click', handleListRateToggle);
 
 // Minimal mode toggle on title click
 let titleTouchHandled = false;
@@ -1236,7 +1008,7 @@ if (localStorage.getItem('deliveryTimerTheme') === 'light') {
     isDark = false;
     document.body.classList.remove('dark');
     document.body.classList.add('light');
-    themeToggle.textContent = 'â˜€ï¸';
+    themeToggle.textContent = '☀️';
 }
 
 if (localStorage.getItem('deliveryTimerSound') === 'false') {
