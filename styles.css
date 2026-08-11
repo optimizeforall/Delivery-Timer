@@ -1071,7 +1071,10 @@ body.light {
 
 .settings-panel {
     padding: 20px;
-    max-width: 340px;
+    max-width: 360px;
+    max-height: min(85dvh, 720px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .confirm-box {
@@ -1176,6 +1179,57 @@ body.light {
 
 .settings-switch.on .settings-switch-knob {
     transform: translateX(20px);
+}
+
+.settings-help {
+    margin-top: 4px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.light .settings-help {
+    border-top-color: rgba(0,0,0,0.08);
+}
+
+.settings-help-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.settings-help-heading {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin: 14px 0 6px;
+    opacity: 0.7;
+}
+
+.settings-help p,
+.settings-help li {
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.settings-help p {
+    margin-bottom: 8px;
+    opacity: 0.8;
+}
+
+.settings-help ol,
+.settings-help ul {
+    margin: 0 0 8px;
+    padding-left: 18px;
+}
+
+.settings-help li {
+    margin-bottom: 5px;
+    opacity: 0.85;
+}
+
+.settings-help li strong {
+    opacity: 1;
 }
 
 .hide-history .history-section {
