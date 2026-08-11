@@ -847,6 +847,101 @@
             display: none;
         }
 
+        .btn-add-time {
+            width: 100%;
+            height: 40px;
+            color: inherit;
+            font-size: 13px;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+
+        .dark .btn-add-time {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.15);
+        }
+
+        .light .btn-add-time {
+            background: rgba(0,0,0,0.06);
+            border: 1px solid rgba(0,0,0,0.1);
+            color: #1c1917;
+        }
+
+        .btn-add-time.hidden {
+            display: none;
+        }
+
+        .add-time-chips {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+
+        .add-time-chip {
+            flex: 1;
+            padding: 14px 8px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+            color: inherit;
+        }
+
+        .dark .add-time-chip {
+            background: rgba(255,255,255,0.12);
+        }
+
+        .light .add-time-chip {
+            background: rgba(234,88,12,0.12);
+            color: #1c1917;
+        }
+
+        .add-time-chip:active {
+            transform: scale(0.96);
+            opacity: 0.85;
+        }
+
+        .add-time-custom {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            align-items: center;
+        }
+
+        .add-time-input {
+            flex: 1;
+            padding: 12px;
+            border-radius: 12px;
+            border: none;
+            font-size: 16px;
+            font-weight: 600;
+            text-align: center;
+            min-width: 0;
+        }
+
+        .dark .add-time-input {
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+
+        .light .add-time-input {
+            background: rgba(0,0,0,0.06);
+            color: #1c1917;
+        }
+
+        .add-time-apply {
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: none;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            background: #22c55e;
+            color: white;
+            white-space: nowrap;
+        }
+
         .btn-main {
             width: 100%;
             height: 140px;
@@ -1345,6 +1440,7 @@
     </div>
 
     <div class="controls">
+        <button class="btn btn-add-time" id="addTimeBtn">+ TIME</button>
         <button class="btn btn-pause hidden" id="pauseBtn">PAUSE</button>
         <div class="split-row hidden" id="splitRow">
             <button class="split-btn" id="splitMinus" aria-label="Decrease stops">-</button>
@@ -1384,6 +1480,7 @@
         let splitCount = 1;
         let isMinimalMode = false;
         let rateUnit = 'perHour'; // 'perHour' | 'perStop'
+        let addedTimeMs = 0; // Extra time added for late starts (baked into timestamps once started)
 
         // Timestamp-based tracking for persistence across tab close/phone sleep
         let sessionStartTimestamp = null;     // When session started (for total time)
@@ -1444,6 +1541,7 @@
         const statsClearBtn = $('statsClearBtn');
         const statsList = $('statsList');
         const titleEl = document.querySelector('.header h1');
+        const addTimeBtn = $('addTimeBtn');
 
         // Persistent state management - saves timer state to survive tab close/phone sleep
         function saveTimerState() {
@@ -1524,8 +1622,9 @@
         // Calculate current elapsed times from timestamps
         function calculateElapsedTimes() {
             if (!hasStarted || !sessionStartTimestamp) {
-                currentSeconds = 0;
-                totalSeconds = 0;
+                const previewSeconds = Math.floor(addedTimeMs / 1000);
+                currentSeconds = previewSeconds;
+                totalSeconds = previewSeconds;
                 return;
             }
             
@@ -1554,6 +1653,73 @@
             } else {
                 currentSeconds = 0;
             }
+        }
+
+        // Add elapsed time before starting (for late starts).
+        function addSeconds(seconds) {
+            if (hasStarted) return;
+
+            const secs = Math.round(Number(seconds));
+            if (!Number.isFinite(secs) || secs <= 0) return;
+
+            addedTimeMs += secs * 1000;
+            currentSeconds = Math.floor(addedTimeMs / 1000);
+            totalSeconds = currentSeconds;
+
+            updateDisplay();
+            if (navigator.vibrate) {
+                navigator.vibrate(10);
+            }
+        }
+
+        function showAddTimeDialog() {
+            if (hasStarted) return;
+            confirmTitle.textContent = 'Add Time';
+            confirmText.textContent = 'Add time you already worked before starting the timer.';
+            summaryStats.style.display = 'none';
+            summaryStats.innerHTML = '';
+
+            confirmButtons.innerHTML = `
+                <div style="width:100%">
+                    <div class="add-time-chips">
+                        <button type="button" class="add-time-chip" data-mins="1">+1 min</button>
+                        <button type="button" class="add-time-chip" data-mins="5">+5 min</button>
+                        <button type="button" class="add-time-chip" data-mins="10">+10 min</button>
+                    </div>
+                    <div class="add-time-custom">
+                        <input type="number" class="add-time-input" id="addTimeCustomInput" min="1" max="999" step="1" inputmode="numeric" pattern="[0-9]*" placeholder="min">
+                        <button type="button" class="add-time-apply" id="addTimeCustomBtn">Add</button>
+                    </div>
+                    <button type="button" class="confirm-btn confirm-cancel" id="addTimeCloseBtn" style="width:100%">Done</button>
+                </div>
+            `;
+            confirmOverlay.classList.add('visible');
+
+            const customInput = document.getElementById('addTimeCustomInput');
+            const customBtn = document.getElementById('addTimeCustomBtn');
+
+            confirmButtons.querySelectorAll('.add-time-chip').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const current = parseInt(customInput.value, 10) || 0;
+                    const next = Math.min(999, current + Number(btn.dataset.mins));
+                    customInput.value = String(next);
+                });
+            });
+
+            const applyCustom = () => {
+                const mins = parseInt(customInput.value, 10);
+                if (!mins || mins <= 0) return;
+                addSeconds(mins * 60);
+                customInput.value = '';
+            };
+            customBtn.addEventListener('click', applyCustom);
+            customInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    applyCustom();
+                }
+            });
+            document.getElementById('addTimeCloseBtn').addEventListener('click', hideResetConfirm);
         }
 
         // Initialize audio context
@@ -1934,8 +2100,9 @@
             
             hasStarted = true;
             isRunning = true;
-            sessionStartTimestamp = now;
-            deliveryStartTimestamp = now;
+            sessionStartTimestamp = now - addedTimeMs;
+            deliveryStartTimestamp = now - addedTimeMs;
+            addedTimeMs = 0; // Already baked into timestamps
             totalPausedMs = 0;
             deliveryPausedMs = 0;
             pauseStartTimestamp = null;
@@ -1946,6 +2113,8 @@
             startBtn.classList.add('hidden');
             deliveredBtn.classList.remove('hidden');
             pauseBtn.classList.remove('hidden');
+            addTimeBtn.classList.add('hidden');
+            hideResetConfirm();
             
             if (intervalId) {
                 clearInterval(intervalId); // Clear any existing interval
@@ -2185,6 +2354,7 @@
             totalPausedMs = 0;
             deliveryPausedMs = 0;
             pauseStartTimestamp = null;
+            addedTimeMs = 0;
             
             // Clear persisted state
             clearTimerState();
@@ -2196,6 +2366,7 @@
             statusBadge.classList.remove('visible');
             startBtn.classList.remove('hidden');
             deliveredBtn.classList.add('hidden');
+            addTimeBtn.classList.remove('hidden');
 
             perHourEl.textContent = formatRate(0);
             avgTimeEl.textContent = '--:--';
@@ -2371,6 +2542,7 @@
         resetBtn.addEventListener('click', showResetConfirm);
         undoBtn.addEventListener('click', undoLast);
         doneBtn.addEventListener('click', showDoneConfirm);
+        addTimeBtn.addEventListener('click', showAddTimeDialog);
         statsBtn.addEventListener('click', showStatsModal);
         statsClose.addEventListener('click', hideStatsModal);
         statsSaveBtn.addEventListener('click', () => {
@@ -2544,6 +2716,7 @@
                 startBtn.classList.add('hidden');
                 deliveredBtn.classList.remove('hidden');
                 pauseBtn.classList.remove('hidden');
+                addTimeBtn.classList.add('hidden');
                 
                 // Restore pause button state
                 if (!isRunning) {
