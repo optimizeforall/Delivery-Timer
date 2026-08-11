@@ -31,42 +31,40 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     min-height: 100vh;
     min-height: 100dvh;
-    display: flex;
-    flex-direction: column;
     overflow: hidden;
     user-select: none;
-    transition: color 0.3s;
-    position: relative;
+    transition: color 0.3s, background 0.3s;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    padding-top: var(--safe-top);
-}
-
-body::before {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: -1;
-    transition: background 0.3s;
-}
-
-body.dark::before {
-    background: linear-gradient(160deg, #121225 0%, #16213e 55%, #1a1a2e 100%);
-}
-
-body.light::before {
-    background: linear-gradient(160deg, #fff7ed 0%, #ffedd5 100%);
 }
 
 body.dark {
     color: white;
+    background: #121225;
 }
 
 body.light {
     color: #1c1917;
+    background: #fff7ed;
+}
+
+.app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow: hidden;
+    position: relative;
+    padding-top: var(--safe-top);
+    transition: background 0.3s;
+}
+
+.dark .app {
+    background: linear-gradient(160deg, #121225 0%, #16213e 55%, #1a1a2e 100%);
+}
+
+.light .app {
+    background: linear-gradient(160deg, #fff7ed 0%, #ffedd5 100%);
 }
 
 .header {
@@ -1046,7 +1044,7 @@ body.light {
 
 .confirm-overlay,
 .settings-overlay {
-    position: fixed;
+    position: absolute;
     inset: 0;
     background: rgba(0,0,0,0.72);
     backdrop-filter: blur(6px);
@@ -1234,7 +1232,7 @@ body.light {
 }
 
 .new-record {
-    position: fixed;
+    position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
@@ -1303,6 +1301,41 @@ body.light {
 
 .minimal-mode .pace-value {
     font-size: 24px;
+}
+
+/* Lock to a phone-sized frame on desktop */
+@media (min-width: 480px) {
+    body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+    }
+
+    body.dark {
+        background: #07070f;
+    }
+
+    body.light {
+        background: #e7e5e4;
+    }
+
+    .app {
+        width: min(430px, calc(100vw - 48px), calc((100dvh - 48px) * 9 / 19.5));
+        height: min(calc(430px * 19.5 / 9), calc(100dvh - 48px), calc((100vw - 48px) * 19.5 / 9));
+        min-height: 0;
+        padding-top: 0;
+        border-radius: 28px;
+        box-shadow:
+            0 0 0 1px rgba(255, 255, 255, 0.08),
+            0 24px 80px rgba(0, 0, 0, 0.45);
+    }
+
+    .light .app {
+        box-shadow:
+            0 0 0 1px rgba(0, 0, 0, 0.08),
+            0 24px 80px rgba(0, 0, 0, 0.18);
+    }
 }
 
 @media (max-height: 700px) {
