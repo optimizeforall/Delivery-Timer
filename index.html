@@ -194,6 +194,15 @@
             border-radius: 20px;
         }
 
+        .rate-toggle {
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .rate-toggle:active {
+            opacity: 0.7;
+        }
+
         .dark .stat {
             background: rgba(255,255,255,0.1);
         }
@@ -1272,7 +1281,7 @@
     <div class="stats-bar">
         <button class="btn-action btn-undo" id="undoBtn" disabled>UNDO</button>
         <div class="stats-center">
-            <div class="stat"><span class="stat-label">Rate</span><span class="stat-value" id="perHour">0.0</span></div>
+            <div class="stat rate-toggle" id="rateStat" role="button" aria-label="Toggle rate units"><span class="stat-label">Rate</span><span class="stat-value" id="perHour">0.0</span></div>
             <div class="stat"><span class="stat-label">Avg</span><span class="stat-value" id="avgTime">--:--</span></div>
             <div class="stat"><span class="stat-label">Best</span><span class="stat-value" id="bestTime">--:--</span></div>
         </div>
@@ -1294,7 +1303,7 @@
         <div class="pace-row">
             <div class="pace-box">
                 <div class="pace-label">Recent</div>
-                <div class="pace-value pace-current" id="paceCurrentEl">--</div>
+                <div class="pace-value pace-current rate-toggle" id="paceCurrentEl" role="button" aria-label="Toggle rate units">--</div>
             </div>
             <div class="pace-box">
                 <div class="pace-label">Est. Finish</div>
@@ -1302,7 +1311,7 @@
             </div>
             <div class="pace-box">
                 <div class="pace-label">Need</div>
-                <div class="pace-value" id="paceNeededEl">--</div>
+                <div class="pace-value rate-toggle" id="paceNeededEl" role="button" aria-label="Toggle rate units">--</div>
             </div>
         </div>
     </div>
@@ -1374,6 +1383,7 @@
         let audioContext = null;
         let splitCount = 1;
         let isMinimalMode = false;
+        let rateUnit = 'perHour'; // 'perHour' | 'perStop'
 
         // Timestamp-based tracking for persistence across tab close/phone sleep
         let sessionStartTimestamp = null;     // When session started (for total time)
@@ -1385,6 +1395,7 @@
         const MIN_SPLIT_COUNT = 1;
         const MAX_SPLIT_COUNT = 99;
         const STATE_STORAGE_KEY = 'deliveryTimerState';
+        const RATE_UNIT_KEY = 'deliveryTimerRateUnit';
 
         // DOM elements
         const $ = id => document.getElementById(id);
@@ -1596,6 +1607,70 @@
             return `${mins}:${secs.toString().padStart(2, '0')}`;
         }
 
+        // Format stops/hr as either "20.0/hr" or "3:00/stp"
+        function formatRate(stopsPerHour) {
+            if (!Number.isFinite(stopsPerHour) || stopsPerHour <= 0) {
+                return rateUnit === 'perStop' ? '--:--' : '0.0';
+            }
+            if (rateUnit === 'perStop') {
+                return `${formatTime(Math.round(3600 / stopsPerHour))}/stp`;
+            }
+            return `${stopsPerHour.toFixed(1)}/hr`;
+        }
+
+        function toggleRateUnit() {
+            rateUnit = rateUnit === 'perHour' ? 'perStop' : 'perHour';
+            try {
+                localStorage.setItem(RATE_UNIT_KEY, rateUnit);
+            } catch (e) {
+                // Ignore storage errors
+            }
+            if (navigator.vibrate) {
+                navigator.vibrate(10);
+            }
+            refreshRateDisplays();
+        }
+
+        function refreshRateDisplays() {
+            updateDisplay();
+            updateHistory();
+
+            if (statsOverlay && statsOverlay.classList.contains('visible')) {
+                const expandedIds = [...statsList.querySelectorAll('.stats-session.expanded')]
+                    .map(el => el.dataset.id);
+                renderStatsList();
+                expandedIds.forEach(id => {
+                    const el = statsList.querySelector(`[data-id="${id}"]`);
+                    if (el) el.classList.add('expanded');
+                });
+            }
+
+            const summaryRate = summaryStats && summaryStats.querySelector('.rate-toggle');
+            if (confirmOverlay.classList.contains('visible') && summaryRate) {
+                summaryRate.textContent = formatRate(getOverallRate());
+            }
+        }
+
+        function bindRateToggle(el) {
+            if (!el) return;
+            let touchHandled = false;
+            el.addEventListener('touchstart', function(e) {
+                touchHandled = true;
+                e.preventDefault();
+                e.stopPropagation();
+                toggleRateUnit();
+                setTimeout(() => { touchHandled = false; }, 300);
+            }, { passive: false });
+            el.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (touchHandled) {
+                    e.preventDefault();
+                    return;
+                }
+                toggleRateUnit();
+            });
+        }
+
         // Format Date to 12-hour AM/PM format
         function formatTimeAMPM(date) {
             let hours = date.getHours();
@@ -1726,7 +1801,7 @@
                 
                 if (hoursRemaining > 0) {
                     const neededRate = remaining / hoursRemaining;
-                    paceNeededEl.textContent = neededRate.toFixed(1) + '/hr';
+                    paceNeededEl.textContent = formatRate(neededRate);
                     
                     if (recentRate >= neededRate) {
                         paceNeededEl.classList.remove('pace-needed', 'pace-behind');
@@ -1794,15 +1869,15 @@
             const recentRate = getRecentRate(7);
             
             if (deliveries.length > 0 && totalSeconds > 0) {
-                perHourEl.textContent = overallRate.toFixed(1);
+                perHourEl.textContent = formatRate(overallRate);
                 
                 const avgSeconds = Math.round(getDeliveryTimeSum() / deliveries.length);
                 avgTimeEl.textContent = formatTime(avgSeconds);
                 bestTimeEl.textContent = formatTime(bestTime);
                 
-                paceCurrentEl.textContent = recentRate.toFixed(1) + '/hr';
+                paceCurrentEl.textContent = formatRate(recentRate);
             } else {
-                perHourEl.textContent = '0.0';
+                perHourEl.textContent = formatRate(0);
                 avgTimeEl.textContent = '--:--';
                 bestTimeEl.textContent = '--:--';
                 paceCurrentEl.textContent = '--';
@@ -1834,7 +1909,7 @@
                 return `<div class="history-item">
                     <span class="num">#${num}</span>
                     <span class="time ${timeClass}">${formatTime(time)}</span>
-                    <span class="rate">${singleRate.toFixed(1)}/hr</span>
+                    <span class="rate rate-toggle">${formatRate(singleRate)}</span>
                 </div>`;
             }).join('');
         }
@@ -2048,7 +2123,7 @@
                 </div>
                 <div class="summary-row">
                     <span class="label">Average Rate</span>
-                    <span class="value">${overallRate.toFixed(1)}/hr</span>
+                    <span class="value rate-toggle">${formatRate(overallRate)}</span>
                 </div>
                 <div class="summary-row">
                     <span class="label">Avg per Delivery</span>
@@ -2069,6 +2144,7 @@
             // Re-attach event listeners
             document.getElementById('confirmCancelBtn').addEventListener('click', hideResetConfirm);
             document.getElementById('confirmDoneBtn').addEventListener('click', finishRoute);
+            summaryStats.querySelectorAll('.rate-toggle').forEach(bindRateToggle);
         }
 
         // Hide confirmation dialog
@@ -2121,7 +2197,7 @@
             startBtn.classList.remove('hidden');
             deliveredBtn.classList.add('hidden');
 
-            perHourEl.textContent = '0.0';
+            perHourEl.textContent = formatRate(0);
             avgTimeEl.textContent = '--:--';
             bestTimeEl.textContent = '--:--';
             paceCurrentEl.textContent = '--';
@@ -2245,7 +2321,7 @@
                         <span class="stats-session-deliveries">${session.deliveries} stops</span>
                     </div>
                     <div class="stats-session-details">
-                        <span>${session.avgRate.toFixed(1)}/hr</span>
+                        <span class="rate-toggle">${formatRate(session.avgRate)}</span>
                         <span>${formatTime(session.totalSeconds, true)}</span>
                     </div>
                     <div class="stats-session-expanded">
@@ -2259,7 +2335,7 @@
                         </div>
                         <div class="stats-detail-row">
                             <span class="label">Average Rate</span>
-                            <span class="value">${session.avgRate.toFixed(1)}/hr</span>
+                            <span class="value rate-toggle">${formatRate(session.avgRate)}</span>
                         </div>
                         <div class="stats-detail-row">
                             <span class="label">Avg per Delivery</span>
@@ -2318,6 +2394,32 @@
         soundToggle.addEventListener('click', toggleSound);
         splitMinus.addEventListener('click', () => setSplitCount(splitCount - 1));
         splitPlus.addEventListener('click', () => setSplitCount(splitCount + 1));
+
+        // Tap any rate display to toggle stops/hr ↔ min/stp
+        bindRateToggle($('rateStat'));
+        bindRateToggle(paceCurrentEl);
+        bindRateToggle(paceNeededEl);
+
+        let listRateTouchHandled = false;
+        function handleListRateToggle(e) {
+            if (!e.target.closest('.rate-toggle')) return false;
+            e.stopPropagation();
+            if (e.type === 'touchstart') {
+                listRateTouchHandled = true;
+                e.preventDefault();
+                toggleRateUnit();
+                setTimeout(() => { listRateTouchHandled = false; }, 300);
+            } else if (!listRateTouchHandled) {
+                toggleRateUnit();
+            } else {
+                e.preventDefault();
+            }
+            return true;
+        }
+        historyListEl.addEventListener('touchstart', handleListRateToggle, { passive: false });
+        historyListEl.addEventListener('click', handleListRateToggle);
+        statsList.addEventListener('touchstart', handleListRateToggle, { passive: false });
+        statsList.addEventListener('click', handleListRateToggle);
 
         // Minimal mode toggle on title click
         let titleTouchHandled = false;
@@ -2428,6 +2530,10 @@
         if (localStorage.getItem('deliveryTimerMinimalMode') === 'true') {
             isMinimalMode = true;
             document.body.classList.add('minimal-mode');
+        }
+
+        if (localStorage.getItem(RATE_UNIT_KEY) === 'perStop') {
+            rateUnit = 'perStop';
         }
 
         // Restore timer state from localStorage if available
