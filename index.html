@@ -21,10 +21,26 @@
 
     <div class="new-record" id="newRecord">NEW PERSONAL BEST</div>
 
+    <div class="settings-overlay" id="settingsOverlay">
+        <div class="settings-panel">
+            <div class="settings-header">
+                <div class="settings-title">Settings</div>
+                <button class="settings-close" id="settingsClose" aria-label="Close settings">×</button>
+            </div>
+            <div class="settings-row">
+                <span class="settings-label">Recent deliveries</span>
+                <button type="button" class="settings-switch on" id="historyToggle" role="switch" aria-checked="true" aria-label="Show recent deliveries">
+                    <span class="settings-switch-knob"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="header">
         <h1>Delivery Tracker</h1>
         <div class="header-controls">
             <button class="btn-pause hidden" id="pauseBtn">PAUSE</button>
+            <button class="icon-toggle" id="settingsBtn" aria-label="Settings">⚙️</button>
             <button class="icon-toggle" id="soundToggle">🔊</button>
             <button class="icon-toggle" id="themeToggle">🌙</button>
         </div>

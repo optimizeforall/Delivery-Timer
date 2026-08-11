@@ -27,6 +27,7 @@ let splitCount = 1;
 let isMinimalMode = false;
 let rateUnit = 'perHour'; // 'perHour' | 'perStop'
 let addedTimeMs = 0; // Extra time added for late starts (baked into timestamps once started)
+let showHistory = true;
 
 // Timestamp-based tracking for persistence across tab close/phone sleep
 let sessionStartTimestamp = null;     // When session started (for total time)
@@ -39,6 +40,7 @@ const MIN_SPLIT_COUNT = 1;
 const MAX_SPLIT_COUNT = 99;
 const STATE_STORAGE_KEY = 'deliveryTimerState';
 const RATE_UNIT_KEY = 'deliveryTimerRateUnit';
+const SHOW_HISTORY_KEY = 'deliveryTimerShowHistory';
 
 // DOM elements
 const $ = id => document.getElementById(id);
@@ -81,6 +83,10 @@ const splitPlus = $('splitPlus');
 const splitValue = $('splitValue');
 const titleEl = document.querySelector('.header h1');
 const addTimeBtn = $('addTimeBtn');
+const settingsBtn = $('settingsBtn');
+const settingsOverlay = $('settingsOverlay');
+const settingsClose = $('settingsClose');
+const historyToggle = $('historyToggle');
 
 // Persistent state management - saves timer state to survive tab close/phone sleep
 function saveTimerState() {
@@ -882,11 +888,45 @@ function toggleMinimalMode() {
     localStorage.setItem('deliveryTimerMinimalMode', isMinimalMode.toString());
 }
 
+function applyHistoryVisibility() {
+    document.body.classList.toggle('hide-history', !showHistory);
+    if (historyToggle) {
+        historyToggle.classList.toggle('on', showHistory);
+        historyToggle.setAttribute('aria-checked', showHistory ? 'true' : 'false');
+    }
+}
+
+function toggleShowHistory() {
+    showHistory = !showHistory;
+    applyHistoryVisibility();
+    try {
+        localStorage.setItem(SHOW_HISTORY_KEY, showHistory.toString());
+    } catch (e) {
+        // Ignore storage errors
+    }
+}
+
+function showSettings() {
+    settingsOverlay.classList.add('visible');
+}
+
+function hideSettings() {
+    settingsOverlay.classList.remove('visible');
+}
+
 // Event listeners
 pauseBtn.addEventListener('click', togglePause);
 resetBtn.addEventListener('click', showResetConfirm);
 undoBtn.addEventListener('click', undoLast);
 addTimeBtn.addEventListener('click', showAddTimeDialog);
+settingsBtn.addEventListener('click', showSettings);
+settingsClose.addEventListener('click', hideSettings);
+settingsOverlay.addEventListener('click', (e) => {
+    if (e.target === settingsOverlay) {
+        hideSettings();
+    }
+});
+historyToggle.addEventListener('click', toggleShowHistory);
 targetInput.addEventListener('input', updateDisplay);
 finishTimeInput.addEventListener('input', updateDisplay);
 themeToggle.addEventListener('click', toggleTheme);
@@ -1032,6 +1072,11 @@ if (localStorage.getItem('deliveryTimerMinimalMode') === 'true') {
 if (localStorage.getItem(RATE_UNIT_KEY) === 'perStop') {
     rateUnit = 'perStop';
 }
+
+if (localStorage.getItem(SHOW_HISTORY_KEY) === 'false') {
+    showHistory = false;
+}
+applyHistoryVisibility();
 
 // Restore timer state from localStorage if available
 // This allows the timer to persist across page closes and phone sleep

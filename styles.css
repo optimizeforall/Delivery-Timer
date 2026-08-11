@@ -974,6 +974,114 @@ body.light {
     display: flex;
 }
 
+.settings-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    padding: 20px;
+}
+
+.settings-overlay.visible {
+    display: flex;
+}
+
+.settings-panel {
+    background: #1a1a2e;
+    border-radius: 20px;
+    padding: 20px;
+    max-width: 320px;
+    width: 100%;
+}
+
+.light .settings-panel {
+    background: white;
+}
+
+.settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.settings-title {
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.settings-close {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+    opacity: 0.7;
+}
+
+.settings-close:active {
+    opacity: 1;
+}
+
+.settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 0;
+}
+
+.settings-label {
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.settings-switch {
+    position: relative;
+    width: 52px;
+    height: 30px;
+    border-radius: 999px;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    background: rgba(255,255,255,0.2);
+    flex-shrink: 0;
+    transition: background 0.2s;
+}
+
+.light .settings-switch {
+    background: rgba(0,0,0,0.18);
+}
+
+.settings-switch.on {
+    background: #22c55e;
+}
+
+.settings-switch-knob {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: white;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+}
+
+.settings-switch.on .settings-switch-knob {
+    transform: translateX(22px);
+}
+
+.hide-history .history-section {
+    display: none;
+}
+
 .confirm-box {
     background: #1a1a2e;
     border-radius: 20px;
