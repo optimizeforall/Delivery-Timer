@@ -24,6 +24,7 @@
     <div class="header">
         <h1>Delivery Tracker</h1>
         <div class="header-controls">
+            <button class="btn-pause hidden" id="pauseBtn">PAUSE</button>
             <button class="icon-toggle" id="soundToggle">🔊</button>
             <button class="icon-toggle" id="themeToggle">🌙</button>
         </div>
@@ -96,13 +97,12 @@
     </div>
 
     <div class="controls">
-        <button class="btn btn-add-time" id="addTimeBtn">+ TIME</button>
-        <button class="btn btn-pause hidden" id="pauseBtn">PAUSE</button>
-        <div class="split-row hidden" id="splitRow">
+        <div class="split-row" id="splitRow">
             <button class="split-btn" id="splitMinus" aria-label="Decrease stops">-</button>
             <span class="split-value" id="splitValue">1</span>
             <button class="split-btn" id="splitPlus" aria-label="Increase stops">+</button>
         </div>
+        <button class="btn btn-add-time" id="addTimeBtn">+ TIME</button>
         <button class="btn btn-main btn-start" id="startBtn">START</button>
         <button class="btn btn-main btn-delivered hidden" id="deliveredBtn">DELIVERED</button>
     </div>

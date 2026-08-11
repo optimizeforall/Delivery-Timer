@@ -394,7 +394,6 @@ function updateSplitControls() {
     splitValue.textContent = splitCount.toString();
     splitMinus.disabled = splitCount <= MIN_SPLIT_COUNT;
     splitPlus.disabled = splitCount >= MAX_SPLIT_COUNT;
-    splitRow.classList.toggle('hidden', !hasStarted);
 }
 
 function setSplitCount(value) {
@@ -624,11 +623,13 @@ function startSession() {
     if (hasStarted) return; // Prevent starting multiple times
     
     const now = Date.now();
+    const pendingBacklogMs = addedTimeMs;
+    const pendingSplit = splitCount;
     
     hasStarted = true;
     isRunning = true;
-    sessionStartTimestamp = now - addedTimeMs;
-    deliveryStartTimestamp = now - addedTimeMs;
+    sessionStartTimestamp = now - pendingBacklogMs;
+    deliveryStartTimestamp = now - pendingBacklogMs;
     addedTimeMs = 0; // Already baked into timestamps
     totalPausedMs = 0;
     deliveryPausedMs = 0;
@@ -651,6 +652,12 @@ function startSession() {
     // Save state immediately
     saveTimerState();
     updateDisplay();
+
+    // If time + multi-stop were set before start, log those completed packages now
+    if (pendingBacklogMs > 0 && pendingSplit > 1) {
+        calculateElapsedTimes();
+        recordDelivery();
+    }
 }
 
 // Toggle pause/resume
