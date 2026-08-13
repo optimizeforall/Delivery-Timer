@@ -1016,6 +1016,10 @@ function applyThemeIcons() {
         'aria-label',
         isDark ? 'Switch to light theme' : 'Switch to dark theme'
     );
+    const themeColor = document.querySelector('meta[name="theme-color"]');
+    if (themeColor) {
+        themeColor.setAttribute('content', isDark ? '#121225' : '#fff7ed');
+    }
 }
 
 // Toggle dark/light theme
@@ -1402,4 +1406,8 @@ function applyDefaultFinishTime() {
 if (!initializeFromSavedState()) {
     applyDefaultFinishTime();
     updateDisplay();
+}
+
+if ('serviceWorker' in navigator && window.location.protocol !== 'file:') {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
 }

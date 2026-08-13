@@ -1,0 +1,25 @@
+{
+  "name": "Delivery Tracker",
+  "short_name": "Deliveries",
+  "description": "A phone-first timer for tracking delivery stops and pace.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#121225",
+  "theme_color": "#121225",
+  "icons": [
+    {
+      "src": "favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

@@ -47,3 +47,10 @@ AHEAD / ON TRACK / BEHIND appears when both Stops and Finish by are set.
 ## Run it
 
 Open `index.html` in a browser, or add it to your phone's home screen as a web app.
+
+The browser address bar only hides after you **install** it. Opening a tab in Chrome or Firefox will always show the top bar. Serve the folder over `http` (not `file://`), then:
+
+- **Android Chrome:** menu → **Add to Home screen** / **Install app**. Open it from the home screen.
+- **iPhone Safari:** Share → **Add to Home Screen**. Open it from the home screen.
+
+It then launches in standalone mode, like a normal phone app.
