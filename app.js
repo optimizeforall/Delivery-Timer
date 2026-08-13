@@ -29,6 +29,8 @@ let isMinimalMode = false;
 let rateUnit = 'perHour'; // 'perHour' | 'perStop'
 let addedTimeMs = 0; // Extra time added for late starts (baked into timestamps once started)
 let showHistory = true;
+let recentWindow = 7;
+let skipHoldEnabled = true;
 
 // Timestamp-based tracking for persistence across tab close/phone sleep
 let sessionStartTimestamp = null;     // When session started (for total time)
@@ -42,7 +44,13 @@ const MAX_SPLIT_COUNT = 99;
 const STATE_STORAGE_KEY = 'deliveryTimerState';
 const RATE_UNIT_KEY = 'deliveryTimerRateUnit';
 const SHOW_HISTORY_KEY = 'deliveryTimerShowHistory';
+const RECENT_WINDOW_KEY = 'deliveryTimerRecentWindow';
+const SKIP_HOLD_KEY = 'deliveryTimerSkipHold';
 const DEFAULT_FINISH_TIME = '15:30';
+const DEFAULT_RECENT_WINDOW = 7;
+const MIN_RECENT_WINDOW = 1;
+const MAX_RECENT_WINDOW = 999;
+const SKIP_HOLD_MS = 850;
 
 // DOM elements
 const $ = id => document.getElementById(id);
@@ -77,6 +85,7 @@ const confirmButtons = $('confirmButtons');
 const confirmClose = $('confirmClose');
 const summaryStats = $('summaryStats');
 const newRecord = $('newRecord');
+const skipFlash = $('skipFlash');
 const themeToggle = $('themeToggle');
 const soundToggle = $('soundToggle');
 const estimateTime = $('estimateTime');
@@ -90,6 +99,10 @@ const settingsBtn = $('settingsBtn');
 const settingsOverlay = $('settingsOverlay');
 const settingsClose = $('settingsClose');
 const historyToggle = $('historyToggle');
+const skipHoldToggle = $('skipHoldToggle');
+const recentWindowInput = $('recentWindowInput');
+const recentWindowMinus = $('recentWindowMinus');
+const recentWindowPlus = $('recentWindowPlus');
 
 // Persistent state management - saves timer state to survive tab close/phone sleep
 function saveTimerState() {
@@ -145,7 +158,7 @@ function loadTimerState() {
         pauseStartTimestamp = state.pauseStartTimestamp;
         isRunning = state.isRunning;
         hasStarted = state.hasStarted;
-        deliveries = state.deliveries || [];
+        deliveries = (state.deliveries || []).map(normalizeDelivery);
         bestTime = state.bestTime === null ? Infinity : state.bestTime;
         splitCount = state.splitCount || 1;
         
@@ -278,6 +291,24 @@ function initAudio() {
     return audioContext;
 }
 
+// Desktop Chrome blocks sounds that start after a delay (the hold).
+// Unlocking on pointerdown, during the real click, lets the later skip tone play.
+function unlockAudio() {
+    try {
+        const ctx = initAudio();
+        if (ctx.state === 'suspended') {
+            ctx.resume();
+        }
+        const buffer = ctx.createBuffer(1, 1, 22050);
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        source.start(0);
+    } catch (e) {
+        // Silently fail if audio doesn't work
+    }
+}
+
 // Play delivery completion sound
 function playDeliverySound() {
     if (!soundEnabled) return;
@@ -308,6 +339,48 @@ function playDeliverySound() {
     } catch (e) {
         // Silently fail if audio doesn't work
     }
+}
+
+function playSkipSound() {
+    if (!soundEnabled) return;
+
+    try {
+        const ctx = initAudio();
+        if (ctx.state === 'suspended') {
+            ctx.resume();
+        }
+
+        const now = ctx.currentTime;
+        const gain = ctx.createGain();
+        gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(0.28, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+
+        const low = ctx.createOscillator();
+        const harsh = ctx.createOscillator();
+        low.type = 'sawtooth';
+        harsh.type = 'square';
+        low.frequency.setValueAtTime(165, now);
+        low.frequency.exponentialRampToValueAtTime(58, now + 0.5);
+        harsh.frequency.setValueAtTime(196, now);
+        harsh.frequency.exponentialRampToValueAtTime(72, now + 0.5);
+        low.connect(gain);
+        harsh.connect(gain);
+        low.start(now);
+        harsh.start(now);
+        low.stop(now + 0.55);
+        harsh.stop(now + 0.55);
+    } catch (e) {
+        // Silently fail if audio doesn't work
+    }
+}
+
+function showSkipFlash() {
+    if (!skipFlash) return;
+    skipFlash.classList.remove('visible');
+    void skipFlash.offsetWidth;
+    skipFlash.classList.add('visible');
+    setTimeout(() => skipFlash.classList.remove('visible'), 700);
 }
 
 // Format seconds to MM:SS or H:MM:SS
@@ -391,6 +464,41 @@ function getTimeClass(seconds) {
     return 'time-slow';
 }
 
+function normalizeDelivery(d) {
+    if (typeof d === 'number') {
+        return { time: d, skipped: false };
+    }
+    if (d && typeof d === 'object') {
+        const time = Number(d.time);
+        return {
+            time: Number.isFinite(time) ? time : 0,
+            skipped: !!d.skipped
+        };
+    }
+    return { time: 0, skipped: false };
+}
+
+function deliveryTime(d) {
+    return typeof d === 'number' ? d : ((d && d.time) || 0);
+}
+
+function isSkipped(d) {
+    return !!(d && typeof d === 'object' && d.skipped);
+}
+
+function countedDeliveries() {
+    return deliveries.filter(d => !isSkipped(d));
+}
+
+function skippedTimeSum() {
+    return deliveries.reduce((sum, d) => sum + (isSkipped(d) ? deliveryTime(d) : 0), 0);
+}
+
+function refreshBestTime() {
+    const counted = countedDeliveries();
+    bestTime = counted.length ? Math.min(...counted.map(deliveryTime)) : Infinity;
+}
+
 // Get target stop count from input
 function getTarget() {
     const val = parseInt(targetInput.value);
@@ -438,21 +546,24 @@ function getFinishTime() {
 
 // Calculate sum of all delivery times
 function getDeliveryTimeSum() {
-    return deliveries.reduce((sum, time) => sum + time, 0);
+    return countedDeliveries().reduce((sum, d) => sum + deliveryTime(d), 0);
 }
 
-// Calculate overall rate (deliveries per hour) based on total elapsed time
+// Calculate overall rate (deliveries per hour), ignoring skipped/stuck stops
 function getOverallRate() {
-    if (deliveries.length === 0 || totalSeconds === 0) return 0;
-    const hours = totalSeconds / 3600;
-    return deliveries.length / hours;
+    const counted = countedDeliveries();
+    const ratedSeconds = Math.max(0, totalSeconds - skippedTimeSum());
+    if (counted.length === 0 || ratedSeconds === 0) return 0;
+    return counted.length / (ratedSeconds / 3600);
 }
 
-// Calculate rate for last N deliveries
-function getRecentRate(n = 7) {
-    if (deliveries.length === 0) return 0;
-    const recentDeliveries = deliveries.slice(-n);
-    const recentTime = recentDeliveries.reduce((sum, time) => sum + time, 0);
+// Calculate rate for last N counted (non-skipped) deliveries
+function getRecentRate(n = recentWindow) {
+    const counted = countedDeliveries();
+    if (counted.length === 0) return 0;
+    const windowSize = Math.max(MIN_RECENT_WINDOW, Math.min(n, MAX_RECENT_WINDOW));
+    const recentDeliveries = counted.slice(-windowSize);
+    const recentTime = recentDeliveries.reduce((sum, d) => sum + deliveryTime(d), 0);
     if (recentTime === 0) return 0;
     const hours = recentTime / 3600;
     return recentDeliveries.length / hours;
@@ -465,11 +576,11 @@ function getSingleDeliveryRate(seconds) {
     return 1 / hours;
 }
 
-// Update estimated finish time based on recent pace (last 7 deliveries)
+// Update estimated finish time based on recent pace
 function updateEstimate() {
     const target = getTarget();
     const remaining = target - deliveries.length;
-    const recentRate = getRecentRate(7);
+    const recentRate = getRecentRate();
 
     if (target > 0 && remaining > 0 && recentRate > 0) {
         const hoursNeeded = remaining / recentRate;
@@ -488,7 +599,7 @@ function updatePaceNeeded() {
     const target = getTarget();
     const finishTime = getFinishTime();
     const remaining = target - deliveries.length;
-    const recentRate = getRecentRate(7);
+    const recentRate = getRecentRate();
 
     // Update remaining label
     if (target > 0) {
@@ -568,13 +679,14 @@ function updateDisplay() {
     currentTimeEl.classList.remove('time-fast', 'time-mid', 'time-slow');
     currentTimeEl.classList.add(getTimeClass(currentSeconds));
 
+    const counted = countedDeliveries();
     const overallRate = getOverallRate();
-    const recentRate = getRecentRate(7);
+    const recentRate = getRecentRate();
     
-    if (deliveries.length > 0 && totalSeconds > 0) {
+    if (counted.length > 0 && totalSeconds > 0) {
         perHourEl.textContent = formatRate(overallRate);
         
-        const avgSeconds = Math.round(getDeliveryTimeSum() / deliveries.length);
+        const avgSeconds = Math.round(getDeliveryTimeSum() / counted.length);
         avgTimeEl.textContent = formatTime(avgSeconds);
         bestTimeEl.textContent = formatTime(bestTime);
         
@@ -602,15 +714,17 @@ function updateHistory() {
         return;
     }
 
-    historyListEl.innerHTML = deliveries.slice().reverse().slice(0, 15).map((time, idx) => {
+    historyListEl.innerHTML = deliveries.slice().reverse().slice(0, 15).map((entry, idx) => {
         const num = deliveries.length - idx;
+        const time = deliveryTime(entry);
+        const skipped = isSkipped(entry);
         const singleRate = getSingleDeliveryRate(time);
-        const timeClass = getTimeClass(time);
+        const timeClass = skipped ? '' : getTimeClass(time);
 
-        return `<div class="history-item">
+        return `<div class="history-item${skipped ? ' skipped' : ''}">
             <span class="num">#${num}</span>
             <span class="time ${timeClass}">${formatTime(time)}</span>
-            <span class="rate rate-toggle">${formatRate(singleRate)}</span>
+            <span class="rate${skipped ? '' : ' rate-toggle'}">${skipped ? 'SKIP' : formatRate(singleRate)}</span>
         </div>`;
     }).join('');
 }
@@ -675,7 +789,7 @@ function startSession() {
     pauseStartTimestamp = null;
     
     // Initialize audio context on first user interaction
-    initAudio();
+    unlockAudio();
     
     startBtn.classList.add('hidden');
     deliveredBtn.classList.remove('hidden');
@@ -730,36 +844,38 @@ function togglePause() {
 }
 
 // Record a delivery
-function recordDelivery() {
+function recordDelivery(skipped = false) {
     // Calculate current time first
     calculateElapsedTimes();
     
     if (currentSeconds === 0) return;
 
     const splitTimes = splitDeliveryTimes(currentSeconds, splitCount);
-    const hadPrevious = deliveries.length > 0;
+    const countedBefore = countedDeliveries().length;
     let hitNewRecord = false;
 
-    // Flash green animation
-    currentTimeEl.classList.remove('flash-green');
+    currentTimeEl.classList.remove('flash-green', 'flash-skip');
     void currentTimeEl.offsetWidth;
-    currentTimeEl.classList.add('flash-green');
+    currentTimeEl.classList.add(skipped ? 'flash-skip' : 'flash-green');
 
-    // Play sound
-    playDeliverySound();
+    if (skipped) {
+        playSkipSound();
+        showSkipFlash();
+    } else {
+        playDeliverySound();
+    }
 
     splitTimes.forEach(time => {
-        const isNewRecord = time < bestTime && hadPrevious;
-        
-        if (time < bestTime) {
-            bestTime = time;
+        if (!skipped) {
+            const isNewRecord = time < bestTime && countedBefore > 0;
+            if (time < bestTime) {
+                bestTime = time;
+            }
+            if (isNewRecord) {
+                hitNewRecord = true;
+            }
         }
-        
-        if (isNewRecord) {
-            hitNewRecord = true;
-        }
-
-        deliveries.push(time);
+        deliveries.push({ time, skipped: !!skipped });
     });
 
     if (hitNewRecord) {
@@ -793,7 +909,7 @@ function recordDelivery() {
     startTicker();
 
     if (navigator.vibrate) {
-        navigator.vibrate(30);
+        navigator.vibrate(skipped ? 500 : 30);
     }
 }
 
@@ -801,7 +917,8 @@ function recordDelivery() {
 function undoLast() {
     if (deliveries.length === 0) return;
 
-    const lastDeliveryTime = deliveries.pop();
+    const lastDelivery = deliveries.pop();
+    const lastDeliveryTime = deliveryTime(lastDelivery);
     
     // Adjust delivery start timestamp backwards to include the undone delivery time
     // This effectively adds the time back to the current delivery
@@ -810,11 +927,7 @@ function undoLast() {
     // Recalculate
     calculateElapsedTimes();
     
-    if (deliveries.length > 0) {
-        bestTime = Math.min(...deliveries);
-    } else {
-        bestTime = Infinity;
-    }
+    refreshBestTime();
     
     saveTimerState();
     updateDisplay();
@@ -879,7 +992,7 @@ function resetAll() {
     pauseBtn.textContent = 'PAUSE';
     pauseBtn.classList.remove('paused');
     pauseBtn.classList.add('hidden');
-    currentTimeEl.classList.remove('paused', 'flash-green');
+    currentTimeEl.classList.remove('paused', 'flash-green', 'flash-skip');
     statusBadge.classList.remove('visible');
     startBtn.classList.remove('hidden');
     deliveredBtn.classList.add('hidden');
@@ -945,6 +1058,22 @@ function applyHistoryVisibility() {
     }
 }
 
+function applySkipHoldToggle() {
+    if (!skipHoldToggle) return;
+    skipHoldToggle.classList.toggle('on', skipHoldEnabled);
+    skipHoldToggle.setAttribute('aria-checked', skipHoldEnabled ? 'true' : 'false');
+}
+
+function toggleSkipHold() {
+    skipHoldEnabled = !skipHoldEnabled;
+    applySkipHoldToggle();
+    try {
+        localStorage.setItem(SKIP_HOLD_KEY, skipHoldEnabled.toString());
+    } catch (e) {
+        // Ignore storage errors
+    }
+}
+
 function toggleShowHistory() {
     showHistory = !showHistory;
     applyHistoryVisibility();
@@ -953,6 +1082,28 @@ function toggleShowHistory() {
     } catch (e) {
         // Ignore storage errors
     }
+}
+
+function applyRecentWindowControls() {
+    if (!recentWindowInput) return;
+    recentWindowInput.value = String(recentWindow);
+    if (recentWindowMinus) recentWindowMinus.disabled = recentWindow <= MIN_RECENT_WINDOW;
+    if (recentWindowPlus) recentWindowPlus.disabled = recentWindow >= MAX_RECENT_WINDOW;
+}
+
+function setRecentWindow(value) {
+    const parsed = parseInt(value, 10);
+    const next = Number.isFinite(parsed)
+        ? Math.max(MIN_RECENT_WINDOW, Math.min(MAX_RECENT_WINDOW, parsed))
+        : DEFAULT_RECENT_WINDOW;
+    recentWindow = next;
+    applyRecentWindowControls();
+    try {
+        localStorage.setItem(RECENT_WINDOW_KEY, String(recentWindow));
+    } catch (e) {
+        // Ignore storage errors
+    }
+    updateDisplay();
 }
 
 function showSettings() {
@@ -977,6 +1128,25 @@ settingsOverlay.addEventListener('click', (e) => {
     }
 });
 historyToggle.addEventListener('click', toggleShowHistory);
+skipHoldToggle.addEventListener('click', toggleSkipHold);
+recentWindowMinus.addEventListener('click', () => setRecentWindow(recentWindow - 1));
+recentWindowPlus.addEventListener('click', () => setRecentWindow(recentWindow + 1));
+recentWindowInput.addEventListener('input', function() {
+    const digits = recentWindowInput.value.replace(/\D/g, '').slice(0, 3);
+    if (recentWindowInput.value !== digits) {
+        recentWindowInput.value = digits;
+    }
+    if (digits) {
+        setRecentWindow(digits);
+    }
+});
+recentWindowInput.addEventListener('blur', function() {
+    if (!recentWindowInput.value) {
+        setRecentWindow(DEFAULT_RECENT_WINDOW);
+    } else {
+        applyRecentWindowControls();
+    }
+});
 targetInput.addEventListener('input', function() {
     const digits = targetInput.value.replace(/\D/g, '').slice(0, 3);
     if (targetInput.value !== digits) {
@@ -1035,7 +1205,9 @@ if (titleEl) {
 
 // Touch event handlers to prevent double-firing on mobile
 let startTouchHandled = false;
-let deliveredTouchHandled = false;
+let deliveredPointerDown = false;
+let skipHoldTimer = null;
+let skipHoldCompleted = false;
 
 startBtn.addEventListener('touchstart', function(e) {
     if (hasStarted) return; // Prevent starting twice
@@ -1054,19 +1226,61 @@ startBtn.addEventListener('click', function(e) {
     startSession();
 });
 
-deliveredBtn.addEventListener('touchstart', function(e) {
-    deliveredTouchHandled = true;
-    e.preventDefault();
-    recordDelivery();
-    setTimeout(() => { deliveredTouchHandled = false; }, 300);
-}, { passive: false });
+function clearSkipHoldTimer() {
+    if (skipHoldTimer !== null) {
+        clearTimeout(skipHoldTimer);
+        skipHoldTimer = null;
+    }
+    deliveredBtn.classList.remove('is-holding');
+}
 
-deliveredBtn.addEventListener('click', function(e) {
-    if (deliveredTouchHandled) {
-        e.preventDefault();
+function onDeliveredPointerDown(e) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (e.cancelable) e.preventDefault();
+    deliveredPointerDown = true;
+    skipHoldCompleted = false;
+    unlockAudio();
+    try {
+        deliveredBtn.setPointerCapture(e.pointerId);
+    } catch (err) {
+        // Capture is optional
+    }
+    if (!skipHoldEnabled) {
+        recordDelivery(false);
         return;
     }
-    recordDelivery();
+    deliveredBtn.classList.add('is-holding');
+    skipHoldTimer = setTimeout(() => {
+        skipHoldTimer = null;
+        skipHoldCompleted = true;
+        deliveredBtn.classList.remove('is-holding');
+        recordDelivery(true);
+    }, SKIP_HOLD_MS);
+}
+
+function onDeliveredPointerUp(e) {
+    if (!deliveredPointerDown) return;
+    deliveredPointerDown = false;
+    if (!skipHoldEnabled) return;
+    if (skipHoldCompleted) return;
+    clearSkipHoldTimer();
+    recordDelivery(false);
+}
+
+function onDeliveredPointerCancel() {
+    deliveredPointerDown = false;
+    skipHoldCompleted = false;
+    clearSkipHoldTimer();
+}
+
+deliveredBtn.addEventListener('pointerdown', onDeliveredPointerDown);
+deliveredBtn.addEventListener('pointerup', onDeliveredPointerUp);
+deliveredBtn.addEventListener('pointercancel', onDeliveredPointerCancel);
+deliveredBtn.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+});
+deliveredBtn.addEventListener('click', function(e) {
+    e.preventDefault();
 });
 
 confirmOverlay.addEventListener('click', function(e) {
@@ -1132,6 +1346,17 @@ if (localStorage.getItem(SHOW_HISTORY_KEY) === 'false') {
     showHistory = false;
 }
 applyHistoryVisibility();
+
+if (localStorage.getItem(SKIP_HOLD_KEY) === 'false') {
+    skipHoldEnabled = false;
+}
+applySkipHoldToggle();
+
+const savedRecentWindow = parseInt(localStorage.getItem(RECENT_WINDOW_KEY), 10);
+if (Number.isFinite(savedRecentWindow)) {
+    recentWindow = Math.max(MIN_RECENT_WINDOW, Math.min(MAX_RECENT_WINDOW, savedRecentWindow));
+}
+applyRecentWindowControls();
 
 // Restore timer state from localStorage if available
 // This allows the timer to persist across page closes and phone sleep

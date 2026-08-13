@@ -12,6 +12,7 @@ A phone-first timer for tracking delivery stops, pace, and whether you are on tr
 ## Controls
 
 - **START / DELIVERED** — start the session and log each stop
+- **Hold DELIVERED** — hold for 0.85 seconds to mark a stuck stop. The stop still counts toward your remaining total, but its time is left out of Recent, Avg, Best, Rate, and Est. Finish. You get a long buzz, a red SKIPPED flash, and a harsh sound.
 - **PAUSE** — freeze the timer (in the header while running)
 - **UNDO** — remove the last logged stop
 - **RESET** — clear the whole session
@@ -20,10 +21,10 @@ A phone-first timer for tracking delivery stops, pace, and whether you are on tr
 
 ## Pace and stats
 
-- **Rate** — overall stops per hour
-- **Avg** — average time per stop
-- **Best** — fastest stop this session
-- **Recent** — pace from your last 7 stops
+- **Rate** — overall stops per hour (skipped stops are excluded)
+- **Avg** — average time per counted stop
+- **Best** — fastest counted stop this session
+- **Recent** — pace from your last N counted stops (7 by default; change this in Settings)
 - **Est. Finish** — when you will finish at your recent pace
 - **Need** — the rate required to hit Finish by
 
@@ -31,10 +32,15 @@ Tap any rate (Rate, Recent, or Need) to switch between stops/hour and minutes pe
 
 AHEAD / ON TRACK / BEHIND appears when both Stops and Finish by are set.
 
+## Settings
+
+- **Recent deliveries** — show or hide the recent-stop list
+- **Recent rate** — how many of your latest counted stops Recent, Est. Finish, and on-track status use
+- **Hold to skip** — turn long-press skip on or off
+
 ## Other tips
 
 - Tap the **Delivery Tracker** title to switch into a simpler layout.
-- Use Settings to show or hide recent deliveries.
 - Sound and light/dark theme toggles are in the header.
 - The timer keeps running if you close the tab or lock your phone (up to 24 hours).
 

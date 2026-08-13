@@ -6,6 +6,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <title>Delivery Tracker</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="favicon.png" type="image/png">
+    <link rel="apple-touch-icon" href="favicon.png">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body class="dark">
@@ -24,6 +27,7 @@
     </div>
 
     <div class="new-record" id="newRecord">NEW PERSONAL BEST</div>
+    <div class="skip-flash" id="skipFlash">SKIPPED</div>
 
     <div class="settings-overlay" id="settingsOverlay">
         <div class="settings-panel">
@@ -37,6 +41,26 @@
                     <span class="settings-switch-knob"></span>
                 </button>
             </div>
+            <div class="settings-option">
+                <div class="settings-row">
+                    <span class="settings-label">Recent rate</span>
+                    <div class="settings-stepper">
+                        <button type="button" class="settings-stepper-btn" id="recentWindowMinus" aria-label="Fewer stops">−</button>
+                        <input type="text" class="settings-stepper-input" id="recentWindowInput" value="7" maxlength="3" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" aria-label="Stops used for recent rate">
+                        <button type="button" class="settings-stepper-btn" id="recentWindowPlus" aria-label="More stops">+</button>
+                    </div>
+                </div>
+                <p class="settings-hint">Last N stops for Recent, Est. Finish, and AHEAD / ON TRACK / BEHIND. Default is 7.</p>
+            </div>
+            <div class="settings-option">
+                <div class="settings-row">
+                    <span class="settings-label">Hold to skip</span>
+                    <button type="button" class="settings-switch on" id="skipHoldToggle" role="switch" aria-checked="true" aria-label="Hold DELIVERED to skip a stuck stop">
+                        <span class="settings-switch-knob"></span>
+                    </button>
+                </div>
+                <p class="settings-hint">Hold DELIVERED for 0.85 seconds to log the stop without using its time in Recent, Avg, Best, or Est. Finish.</p>
+            </div>
             <div class="settings-help">
                 <div class="settings-help-title">How to use</div>
                 <p>A phone-first timer for tracking delivery stops, pace, and whether you are on track to finish on time.</p>
@@ -49,6 +73,7 @@
                 <div class="settings-help-heading">Controls</div>
                 <ul>
                     <li><strong>START / DELIVERED</strong> — start the session and log each stop</li>
+                    <li><strong>Hold DELIVERED</strong> — hold 0.85 seconds to mark a stuck stop so it does not affect Recent or Est. Finish</li>
                     <li><strong>PAUSE</strong> — freeze the timer (in the header while running)</li>
                     <li><strong>UNDO</strong> — remove the last logged stop</li>
                     <li><strong>RESET</strong> — clear the whole session</li>
@@ -60,7 +85,7 @@
                     <li><strong>Rate</strong> — overall stops per hour</li>
                     <li><strong>Avg</strong> — average time per stop</li>
                     <li><strong>Best</strong> — fastest stop this session</li>
-                    <li><strong>Recent</strong> — pace from your last 7 stops</li>
+                    <li><strong>Recent</strong> — pace from your last N stops (set in Settings)</li>
                     <li><strong>Est. Finish</strong> — when you will finish at your recent pace</li>
                     <li><strong>Need</strong> — the rate required to hit Finish by</li>
                 </ul>
