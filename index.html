@@ -79,9 +79,31 @@
         <h1>Delivery Tracker</h1>
         <div class="header-controls">
             <button class="btn-pause hidden" id="pauseBtn">PAUSE</button>
-            <button class="icon-toggle" id="settingsBtn" aria-label="Settings">⚙️</button>
-            <button class="icon-toggle" id="soundToggle">🔊</button>
-            <button class="icon-toggle" id="themeToggle">🌙</button>
+            <button type="button" class="icon-toggle" id="settingsBtn" aria-label="Settings">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true">
+                    <path d="M10.15 3.7h3.7l.5 2.2 1.95-.8 1.85 1.85-.8 1.95 2.2.5v3.7l-2.2.5.8 1.95-1.85 1.85-1.95-.8-.5 2.2h-3.7l-.5-2.2-1.95.8-1.85-1.85.8-1.95-2.2-.5v-3.7l2.2-.5-.8-1.95 1.85-1.85 1.95.8z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+                    <circle cx="12" cy="12" r="2.55" stroke="currentColor" stroke-width="1.7" />
+                </svg>
+            </button>
+            <button type="button" class="icon-toggle" id="soundToggle" aria-label="Mute sound">
+                <svg class="icon-sound-on" viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true">
+                    <path d="M11 5 6 9H3v6h3l5 4V5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+                    <path d="M15.5 8.5a5 5 0 0 1 0 7M18.8 5.8a9 9 0 0 1 0 12.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                </svg>
+                <svg class="icon-sound-off" viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true" hidden>
+                    <path d="M11 5 6 9H3v6h3l5 4V5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+                    <path d="M16.2 9.2 21 14.8M21 9.2l-4.8 5.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                </svg>
+            </button>
+            <button type="button" class="icon-toggle" id="themeToggle" aria-label="Switch to light theme">
+                <svg class="icon-sun" viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="12" r="4.25" stroke="currentColor" stroke-width="1.7" />
+                    <path d="M12 3.2v1.8M12 19v1.8M3.2 12h1.8M19 12h1.8M5.64 5.64l1.27 1.27M17.09 17.09l1.27 1.27M5.64 18.36l1.27-1.27M17.09 6.91l1.27-1.27" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                </svg>
+                <svg class="icon-moon" viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true" hidden>
+                    <path d="M16.6 13.4A7 7 0 0 1 10.2 4.2 7.2 7.2 0 1 0 19.8 13.8a7 7 0 0 1-3.2-.4Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+                </svg>
+            </button>
         </div>
     </div>
 

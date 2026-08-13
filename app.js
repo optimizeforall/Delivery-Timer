@@ -864,20 +864,42 @@ function resetAll() {
     updateHistory();
 }
 
+function applyThemeIcons() {
+    const sun = themeToggle.querySelector('.icon-sun');
+    const moon = themeToggle.querySelector('.icon-moon');
+    if (sun) sun.hidden = !isDark;
+    if (moon) moon.hidden = isDark;
+    themeToggle.setAttribute(
+        'aria-label',
+        isDark ? 'Switch to light theme' : 'Switch to dark theme'
+    );
+}
+
 // Toggle dark/light theme
 function toggleTheme() {
     isDark = !isDark;
     document.body.classList.toggle('dark', isDark);
     document.body.classList.toggle('light', !isDark);
-    themeToggle.textContent = isDark ? '🌙' : '☀️';
+    applyThemeIcons();
     localStorage.setItem('deliveryTimerTheme', isDark ? 'dark' : 'light');
+}
+
+function applySoundIcons() {
+    const soundOn = soundToggle.querySelector('.icon-sound-on');
+    const soundOff = soundToggle.querySelector('.icon-sound-off');
+    if (soundOn) soundOn.hidden = !soundEnabled;
+    if (soundOff) soundOff.hidden = soundEnabled;
+    soundToggle.classList.toggle('muted', !soundEnabled);
+    soundToggle.setAttribute(
+        'aria-label',
+        soundEnabled ? 'Mute sound' : 'Unmute sound'
+    );
 }
 
 // Toggle sound
 function toggleSound() {
     soundEnabled = !soundEnabled;
-    soundToggle.textContent = soundEnabled ? '🔊' : '🔇';
-    soundToggle.classList.toggle('muted', !soundEnabled);
+    applySoundIcons();
     localStorage.setItem('deliveryTimerSound', soundEnabled.toString());
 }
 
@@ -1055,14 +1077,13 @@ if (localStorage.getItem('deliveryTimerTheme') === 'light') {
     isDark = false;
     document.body.classList.remove('dark');
     document.body.classList.add('light');
-    themeToggle.textContent = '☀️';
 }
+applyThemeIcons();
 
 if (localStorage.getItem('deliveryTimerSound') === 'false') {
     soundEnabled = false;
-    soundToggle.textContent = '🔇';
-    soundToggle.classList.add('muted');
 }
+applySoundIcons();
 
 if (localStorage.getItem('deliveryTimerMinimalMode') === 'true') {
     isMinimalMode = true;

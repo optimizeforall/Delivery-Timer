@@ -104,35 +104,55 @@ body.light {
 .header-controls {
     display: flex;
     align-items: center;
-    gap: 2px;
+    gap: 8px;
     flex-shrink: 0;
 }
 
 .icon-toggle {
-    background: none;
-    border: none;
-    font-size: 18px;
+    width: 2.4rem;
+    height: 2.4rem;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    font-size: 16px;
     line-height: 1;
     cursor: pointer;
-    width: 36px;
-    height: 36px;
     padding: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-sm);
-    opacity: 0.9;
-    transition: opacity 0.15s, background 0.15s;
     flex-shrink: 0;
+    transition: opacity 0.15s, background 0.15s;
+}
+
+.light .icon-toggle {
+    border-color: rgba(28, 27, 25, 0.1);
+}
+
+.icon-toggle svg {
+    display: block;
+}
+
+.icon-toggle svg[hidden] {
+    display: none;
 }
 
 .icon-toggle:active {
-    opacity: 0.65;
     background: rgba(255,255,255,0.08);
 }
 
 .light .icon-toggle:active {
     background: rgba(0,0,0,0.06);
+}
+
+@media (hover: hover) {
+    .icon-toggle:hover {
+        background: rgba(255,255,255,0.08);
+    }
+
+    .light .icon-toggle:hover {
+        background: rgba(0,0,0,0.06);
+    }
 }
 
 .icon-toggle.muted {
