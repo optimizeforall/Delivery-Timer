@@ -41,6 +41,7 @@ const MAX_SPLIT_COUNT = 99;
 const STATE_STORAGE_KEY = 'deliveryTimerState';
 const RATE_UNIT_KEY = 'deliveryTimerRateUnit';
 const SHOW_HISTORY_KEY = 'deliveryTimerShowHistory';
+const DEFAULT_FINISH_TIME = '15:30';
 
 // DOM elements
 const $ = id => document.getElementById(id);
@@ -72,6 +73,7 @@ const confirmYes = $('confirmYes');
 const confirmTitle = $('confirmTitle');
 const confirmText = $('confirmText');
 const confirmButtons = $('confirmButtons');
+const confirmClose = $('confirmClose');
 const summaryStats = $('summaryStats');
 const newRecord = $('newRecord');
 const themeToggle = $('themeToggle');
@@ -223,6 +225,7 @@ function showAddTimeDialog() {
     confirmText.textContent = 'Add time you already worked before starting the timer.';
     summaryStats.style.display = 'none';
     summaryStats.innerHTML = '';
+    confirmClose.classList.remove('hidden');
 
     confirmButtons.innerHTML = `
         <div style="width:100%">
@@ -233,15 +236,14 @@ function showAddTimeDialog() {
             </div>
             <div class="add-time-custom">
                 <input type="number" class="add-time-input" id="addTimeCustomInput" min="1" max="999" step="1" inputmode="numeric" pattern="[0-9]*" placeholder="min">
-                <button type="button" class="add-time-apply" id="addTimeCustomBtn">Add</button>
             </div>
-            <button type="button" class="confirm-btn confirm-cancel" id="addTimeCloseBtn" style="width:100%">Done</button>
+            <button type="button" class="confirm-btn confirm-done" id="addTimeApplyBtn" style="width:100%">Add</button>
         </div>
     `;
     confirmOverlay.classList.add('visible');
 
     const customInput = document.getElementById('addTimeCustomInput');
-    const customBtn = document.getElementById('addTimeCustomBtn');
+    const applyBtn = document.getElementById('addTimeApplyBtn');
 
     confirmButtons.querySelectorAll('.add-time-chip').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -253,18 +255,18 @@ function showAddTimeDialog() {
 
     const applyCustom = () => {
         const mins = parseInt(customInput.value, 10);
-        if (!mins || mins <= 0) return;
-        addSeconds(mins * 60);
-        customInput.value = '';
+        if (mins && mins > 0) {
+            addSeconds(mins * 60);
+        }
+        hideResetConfirm();
     };
-    customBtn.addEventListener('click', applyCustom);
+    applyBtn.addEventListener('click', applyCustom);
     customInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
             applyCustom();
         }
     });
-    document.getElementById('addTimeCloseBtn').addEventListener('click', hideResetConfirm);
 }
 
 // Initialize audio context
@@ -798,6 +800,7 @@ function showResetConfirm() {
     confirmTitle.textContent = 'Reset All Data?';
     confirmText.textContent = 'This will clear all deliveries and times. This cannot be undone.';
     summaryStats.style.display = 'none';
+    confirmClose.classList.add('hidden');
     confirmButtons.innerHTML = `
         <button class="confirm-btn confirm-cancel" id="confirmCancelBtn">Cancel</button>
         <button class="confirm-btn confirm-yes" id="confirmYesBtn">Reset</button>
@@ -811,6 +814,7 @@ function showResetConfirm() {
 
 // Hide confirmation dialog
 function hideResetConfirm() {
+    confirmClose.classList.add('hidden');
     confirmOverlay.classList.remove('visible');
 }
 
@@ -943,13 +947,20 @@ undoBtn.addEventListener('click', undoLast);
 addTimeBtn.addEventListener('click', showAddTimeDialog);
 settingsBtn.addEventListener('click', showSettings);
 settingsClose.addEventListener('click', hideSettings);
+confirmClose.addEventListener('click', hideResetConfirm);
 settingsOverlay.addEventListener('click', (e) => {
     if (e.target === settingsOverlay) {
         hideSettings();
     }
 });
 historyToggle.addEventListener('click', toggleShowHistory);
-targetInput.addEventListener('input', updateDisplay);
+targetInput.addEventListener('input', function() {
+    const digits = targetInput.value.replace(/\D/g, '').slice(0, 3);
+    if (targetInput.value !== digits) {
+        targetInput.value = digits;
+    }
+    updateDisplay();
+});
 finishTimeInput.addEventListener('input', updateDisplay);
 themeToggle.addEventListener('click', toggleTheme);
 soundToggle.addEventListener('click', toggleSound);
@@ -1124,6 +1135,8 @@ function initializeFromSavedState() {
             clearInterval(intervalId);
         }
         intervalId = setInterval(tick, 1000);
+
+        applyDefaultFinishTime();
         
         // Update display and history
         updateDisplay();
@@ -1135,7 +1148,14 @@ function initializeFromSavedState() {
     return false;
 }
 
+function applyDefaultFinishTime() {
+    if (!finishTimeInput.value) {
+        finishTimeInput.value = DEFAULT_FINISH_TIME;
+    }
+}
+
 // Try to restore saved state, otherwise just update display
 if (!initializeFromSavedState()) {
+    applyDefaultFinishTime();
     updateDisplay();
 }

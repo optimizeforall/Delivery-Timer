@@ -12,6 +12,7 @@
     <div class="app">
     <div class="confirm-overlay" id="confirmOverlay">
         <div class="confirm-box">
+            <button type="button" class="settings-close confirm-close hidden" id="confirmClose" aria-label="Close">×</button>
             <div class="confirm-title" id="confirmTitle">Reset All Data?</div>
             <div class="confirm-text" id="confirmText">This will clear all deliveries and times. This cannot be undone.</div>
             <div class="summary-stats" id="summaryStats" style="display: none;"></div>
@@ -121,12 +122,12 @@
         <div class="inputs-row">
             <div class="target-group">
                 <span class="target-label">Stops:</span>
-                <input type="number" class="target-input" id="targetInput" value="" placeholder="0" min="0" max="999" inputmode="numeric" pattern="[0-9]*">
+                <input type="text" class="target-input" id="targetInput" value="" placeholder="0" maxlength="3" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done">
                 <span class="remaining-text" id="remainingLabel"></span>
             </div>
             <div class="target-group">
                 <span class="target-label">Finish by:</span>
-                <input type="time" class="time-input" id="finishTimeInput">
+                <input type="time" class="time-input" id="finishTimeInput" value="15:30">
             </div>
         </div>
         <div class="pace-row">
