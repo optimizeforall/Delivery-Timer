@@ -39,34 +39,100 @@
                 <div class="settings-title">Settings</div>
                 <button class="settings-close" id="settingsClose" aria-label="Close settings">×</button>
             </div>
-            <div class="settings-row">
-                <span class="settings-label">Recent deliveries</span>
-                <button type="button" class="settings-switch on" id="historyToggle" role="switch" aria-checked="true" aria-label="Show recent deliveries">
-                    <span class="settings-switch-knob"></span>
-                </button>
-            </div>
-            <div class="settings-option">
-                <div class="settings-row">
-                    <span class="settings-label">Recent rate</span>
-                    <div class="settings-stepper">
-                        <button type="button" class="settings-stepper-btn" id="recentWindowMinus" aria-label="Fewer stops">−</button>
-                        <input type="text" class="settings-stepper-input" id="recentWindowInput" value="7" maxlength="3" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" aria-label="Stops used for recent rate">
-                        <button type="button" class="settings-stepper-btn" id="recentWindowPlus" aria-label="More stops">+</button>
+
+            <div class="settings-group">
+                <div class="settings-group-title">Pace</div>
+                <div class="settings-card">
+                    <div class="settings-option">
+                        <div class="settings-row">
+                            <span class="settings-label">Recent deliveries</span>
+                            <button type="button" class="settings-switch on" id="historyToggle" role="switch" aria-checked="true" aria-label="Show recent deliveries">
+                                <span class="settings-switch-knob"></span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="settings-option">
+                        <div class="settings-row">
+                            <span class="settings-label">Recent rate</span>
+                            <div class="settings-stepper">
+                                <button type="button" class="settings-stepper-btn" id="recentWindowMinus" aria-label="Fewer stops">−</button>
+                                <input type="text" class="settings-stepper-input" id="recentWindowInput" value="7" maxlength="3" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" aria-label="Stops used for recent rate">
+                                <button type="button" class="settings-stepper-btn" id="recentWindowPlus" aria-label="More stops">+</button>
+                            </div>
+                        </div>
+                        <p class="settings-hint">Last N stops for Recent, Est. Finish, and AHEAD / ON TRACK / BEHIND.</p>
                     </div>
                 </div>
-                <p class="settings-hint">Last N stops for Recent, Est. Finish, and AHEAD / ON TRACK / BEHIND. Default is 7.</p>
             </div>
-            <div class="settings-option">
-                <div class="settings-row">
-                    <span class="settings-label">Hold to skip</span>
-                    <button type="button" class="settings-switch on" id="skipHoldToggle" role="switch" aria-checked="true" aria-label="Hold DELIVERED to skip a stuck stop">
-                        <span class="settings-switch-knob"></span>
-                    </button>
+
+            <div class="settings-group">
+                <div class="settings-group-title">Skip</div>
+                <div class="settings-card">
+                    <div class="settings-option">
+                        <div class="settings-row">
+                            <span class="settings-label">Hold to skip</span>
+                            <button type="button" class="settings-switch on" id="skipHoldToggle" role="switch" aria-checked="true" aria-label="Hold DELIVERED to skip a stuck stop">
+                                <span class="settings-switch-knob"></span>
+                            </button>
+                        </div>
+                        <p class="settings-hint" id="skipHoldHint">Hold DELIVERED to log a stuck stop without using its time in Recent, Avg, Best, or Est. Finish.</p>
+                    </div>
+                    <div class="settings-option">
+                        <div class="settings-row">
+                            <span class="settings-label">Hold duration</span>
+                            <div class="settings-stepper">
+                                <button type="button" class="settings-stepper-btn" id="skipHoldMinus" aria-label="Shorter hold">−</button>
+                                <input type="text" class="settings-stepper-input settings-stepper-input-wide" id="skipHoldInput" value="0.85" maxlength="4" inputmode="decimal" autocomplete="off" enterkeyhint="done" aria-label="Hold duration in seconds">
+                                <button type="button" class="settings-stepper-btn" id="skipHoldPlus" aria-label="Longer hold">+</button>
+                            </div>
+                        </div>
+                        <p class="settings-hint">Seconds to hold DELIVERED to skip.</p>
+                    </div>
                 </div>
-                <p class="settings-hint">Hold DELIVERED for 0.85 seconds to log the stop without using its time in Recent, Avg, Best, or Est. Finish.</p>
             </div>
-            <div class="settings-help">
-                <div class="settings-help-title">How to use</div>
+
+            <div class="settings-group">
+                <div class="settings-group-title">Session</div>
+                <div class="settings-card">
+                    <div class="settings-option">
+                        <div class="settings-row">
+                            <span class="settings-label">Keep screen on</span>
+                            <button type="button" class="settings-switch on" id="keepScreenToggle" role="switch" aria-checked="true" aria-label="Keep screen on">
+                                <span class="settings-switch-knob"></span>
+                            </button>
+                        </div>
+                        <p class="settings-hint">Keeps the phone awake while this app is open. Works in Chrome; iPhone Safari may still sleep.</p>
+                    </div>
+                    <div class="settings-option">
+                        <div class="settings-row">
+                            <span class="settings-label">Default finish by</span>
+                            <input type="time" class="settings-time-input" id="defaultFinishInput" value="15:30" aria-label="Default finish by time">
+                        </div>
+                        <p class="settings-hint">Used when Finish by is empty and after Reset.</p>
+                    </div>
+                    <div class="settings-option">
+                        <div class="settings-row">
+                            <span class="settings-label">Simple layout</span>
+                            <button type="button" class="settings-switch" id="minimalToggle" role="switch" aria-checked="false" aria-label="Simple layout">
+                                <span class="settings-switch-knob"></span>
+                            </button>
+                        </div>
+                        <p class="settings-hint">Hides extra stats. You can also tap the title.</p>
+                    </div>
+                    <div class="settings-option">
+                        <div class="settings-row">
+                            <span class="settings-label">Haptics</span>
+                            <button type="button" class="settings-switch on" id="hapticsToggle" role="switch" aria-checked="true" aria-label="Haptic feedback">
+                                <span class="settings-switch-knob"></span>
+                            </button>
+                        </div>
+                        <p class="settings-hint">Vibration on DELIVERED, skip, undo, and other taps.</p>
+                    </div>
+                </div>
+            </div>
+
+            <details class="settings-help">
+                <summary class="settings-help-summary">How to use</summary>
                 <p>A phone-first timer for tracking delivery stops, pace, and whether you are on track to finish on time.</p>
                 <ol>
                     <li>Enter your total <strong>Stops</strong> and optional <strong>Finish by</strong> time.</li>
@@ -77,7 +143,7 @@
                 <div class="settings-help-heading">Controls</div>
                 <ul>
                     <li><strong>START / DELIVERED</strong> — start the session and log each stop</li>
-                    <li><strong>Hold DELIVERED</strong> — hold 0.85 seconds to mark a stuck stop so it does not affect Recent or Est. Finish</li>
+                    <li><strong>Hold DELIVERED</strong> — hold to mark a stuck stop so it does not affect Recent or Est. Finish (duration is in Settings)</li>
                     <li><strong>PAUSE</strong> — freeze the timer (in the header while running)</li>
                     <li><strong>UNDO</strong> — remove the last logged stop</li>
                     <li><strong>RESET</strong> — clear the whole session</li>
@@ -97,11 +163,11 @@
                 <p>AHEAD / ON TRACK / BEHIND appears when both Stops and Finish by are set.</p>
                 <div class="settings-help-heading">Other tips</div>
                 <ul>
-                    <li>Tap the <strong>Delivery Tracker</strong> title to switch into a simpler layout.</li>
+                    <li>Tap the <strong>Delivery Tracker</strong> title, or use Settings, to switch into a simpler layout.</li>
                     <li>Sound and light/dark theme toggles are in the header.</li>
                     <li>The timer keeps running if you close the tab or lock your phone (up to 24 hours).</li>
                 </ul>
-            </div>
+            </details>
         </div>
     </div>
 

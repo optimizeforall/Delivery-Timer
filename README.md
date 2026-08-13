@@ -12,7 +12,7 @@ A phone-first timer for tracking delivery stops, pace, and whether you are on tr
 ## Controls
 
 - **START / DELIVERED** — start the session and log each stop
-- **Hold DELIVERED** — hold for 0.85 seconds to mark a stuck stop. The stop still counts toward your remaining total, but its time is left out of Recent, Avg, Best, Rate, and Est. Finish. You get a long buzz, a red SKIPPED flash, and a harsh sound.
+- **Hold DELIVERED** — hold to mark a stuck stop (duration is in Settings). The stop still counts toward your remaining total, but its time is left out of Recent, Avg, Best, Rate, and Est. Finish. You get a long buzz, a red SKIPPED flash, and a harsh sound.
 - **PAUSE** — freeze the timer (in the header while running)
 - **UNDO** — remove the last logged stop
 - **RESET** — clear the whole session
@@ -37,6 +37,11 @@ AHEAD / ON TRACK / BEHIND appears when both Stops and Finish by are set.
 - **Recent deliveries** — show or hide the recent-stop list
 - **Recent rate** — how many of your latest counted stops Recent, Est. Finish, and on-track status use
 - **Hold to skip** — turn long-press skip on or off
+- **Hold duration** — how long you must hold DELIVERED to skip (0.85s by default)
+- **Keep screen on** — keep the phone awake while the app is open (on by default; Chrome supports this, iPhone Safari may still sleep)
+- **Default finish by** — the Finish by time used when the field is empty and after Reset (3:30 PM by default)
+- **Simple layout** — hide extra stats; you can also tap the title
+- **Haptics** — vibration on DELIVERED, skip, undo, and other taps
 
 ## Other tips
 

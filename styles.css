@@ -25,6 +25,7 @@
     --touch: 44px;
     --safe-bottom: env(safe-area-inset-bottom, 0px);
     --safe-top: env(safe-area-inset-top, 0px);
+    --skip-hold-ms: 850ms;
 }
 
 body {
@@ -1122,7 +1123,7 @@ body.light {
     background: rgba(239, 68, 68, 0.5);
     transform: scaleX(0);
     transform-origin: left center;
-    animation: skip-hold-fill 0.85s linear forwards;
+    animation: skip-hold-fill var(--skip-hold-ms, 850ms) linear forwards;
     pointer-events: none;
 }
 
@@ -1167,7 +1168,7 @@ body.light {
 }
 
 .settings-panel {
-    padding: 20px;
+    padding: 16px 16px 18px;
     max-width: 360px;
     max-height: min(85dvh, 720px);
     overflow-y: auto;
@@ -1190,7 +1191,7 @@ body.light {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 8px;
+    margin: -4px -4px 14px 0;
 }
 
 .settings-title,
@@ -1243,12 +1244,45 @@ body.light {
     background: rgba(0,0,0,0.06);
 }
 
+.settings-group {
+    margin-bottom: 18px;
+}
+
+.settings-group-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.45;
+    padding: 0 4px 8px;
+}
+
+.settings-card {
+    border-radius: 14px;
+    overflow: hidden;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+}
+
+.light .settings-card {
+    background: rgba(0,0,0,0.035);
+    border-color: rgba(0,0,0,0.08);
+}
+
+.settings-card .settings-option + .settings-option {
+    border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.light .settings-card .settings-option + .settings-option {
+    border-top-color: rgba(0,0,0,0.08);
+}
+
 .settings-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    padding: 14px 0;
+    padding: 12px 14px;
 }
 
 .settings-label {
@@ -1294,14 +1328,15 @@ body.light {
 }
 
 .settings-option {
-    padding-bottom: 6px;
+    padding-bottom: 0;
 }
 
 .settings-hint {
-    margin: -4px 0 8px;
+    margin: -2px 0 0;
+    padding: 0 14px 12px;
     font-size: 12px;
     line-height: 1.4;
-    opacity: 0.65;
+    opacity: 0.58;
 }
 
 .settings-stepper {
@@ -1365,20 +1400,109 @@ body.light {
     border-color: var(--accent);
 }
 
+.settings-stepper-input-wide {
+    width: 52px;
+}
+
+.settings-time-input {
+    width: 118px;
+    height: 32px;
+    padding: 0 8px;
+    border-radius: var(--radius-sm);
+    font-size: 15px;
+    font-weight: 600;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.dark .settings-time-input {
+    border: 1px solid rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.08);
+    color: white;
+    color-scheme: dark;
+}
+
+.light .settings-time-input {
+    border: 1px solid rgba(234,88,12,0.28);
+    background: white;
+    color: #1c1917;
+}
+
+.settings-time-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
 .settings-help {
-    margin-top: 4px;
-    padding-top: 14px;
-    border-top: 1px solid rgba(255,255,255,0.08);
+    margin: 2px 0 0;
+    padding: 0;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    background: rgba(255,255,255,0.06);
+    overflow: hidden;
 }
 
 .light .settings-help {
-    border-top-color: rgba(0,0,0,0.08);
+    border-color: rgba(0,0,0,0.08);
+    background: rgba(0,0,0,0.035);
 }
 
-.settings-help-title {
+.settings-help-summary {
+    list-style: none;
+    cursor: pointer;
     font-size: 15px;
-    font-weight: 700;
-    margin-bottom: 8px;
+    font-weight: 600;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.settings-help-summary::-webkit-details-marker {
+    display: none;
+}
+
+.settings-help-summary::after {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg);
+    opacity: 0.45;
+    margin-right: 4px;
+    transition: transform 0.15s ease;
+}
+
+.settings-help[open] .settings-help-summary::after {
+    transform: rotate(-135deg);
+    margin-top: 4px;
+}
+
+.settings-help[open] .settings-help-summary {
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.light .settings-help[open] .settings-help-summary {
+    border-bottom-color: rgba(0,0,0,0.08);
+}
+
+.settings-help p,
+.settings-help-heading {
+    padding-left: 14px;
+    padding-right: 14px;
+}
+
+.settings-help > p:first-of-type {
+    padding-top: 12px;
+}
+
+.settings-help > ul:last-child,
+.settings-help > ol:last-child,
+.settings-help > p:last-child {
+    padding-bottom: 12px;
 }
 
 .settings-help-heading {
@@ -1404,7 +1528,8 @@ body.light {
 .settings-help ol,
 .settings-help ul {
     margin: 0 0 8px;
-    padding-left: 18px;
+    padding-left: 32px;
+    padding-right: 14px;
 }
 
 .settings-help li {

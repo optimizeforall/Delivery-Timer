@@ -31,6 +31,10 @@ let addedTimeMs = 0; // Extra time added for late starts (baked into timestamps 
 let showHistory = true;
 let recentWindow = 7;
 let skipHoldEnabled = true;
+let skipHoldMs = 850;
+let keepScreenOn = true;
+let hapticsEnabled = true;
+let defaultFinishTime = '15:30';
 
 // Timestamp-based tracking for persistence across tab close/phone sleep
 let sessionStartTimestamp = null;     // When session started (for total time)
@@ -46,11 +50,18 @@ const RATE_UNIT_KEY = 'deliveryTimerRateUnit';
 const SHOW_HISTORY_KEY = 'deliveryTimerShowHistory';
 const RECENT_WINDOW_KEY = 'deliveryTimerRecentWindow';
 const SKIP_HOLD_KEY = 'deliveryTimerSkipHold';
+const SKIP_HOLD_MS_KEY = 'deliveryTimerSkipHoldMs';
+const KEEP_SCREEN_KEY = 'deliveryTimerKeepScreenOn';
+const HAPTICS_KEY = 'deliveryTimerHaptics';
+const DEFAULT_FINISH_KEY = 'deliveryTimerDefaultFinish';
 const DEFAULT_FINISH_TIME = '15:30';
 const DEFAULT_RECENT_WINDOW = 7;
 const MIN_RECENT_WINDOW = 1;
 const MAX_RECENT_WINDOW = 999;
-const SKIP_HOLD_MS = 850;
+const DEFAULT_SKIP_HOLD_MS = 850;
+const MIN_SKIP_HOLD_MS = 400;
+const MAX_SKIP_HOLD_MS = 2500;
+const SKIP_HOLD_STEP_MS = 50;
 
 // DOM elements
 const $ = id => document.getElementById(id);
@@ -100,9 +111,64 @@ const settingsOverlay = $('settingsOverlay');
 const settingsClose = $('settingsClose');
 const historyToggle = $('historyToggle');
 const skipHoldToggle = $('skipHoldToggle');
+const skipHoldHint = $('skipHoldHint');
+const skipHoldInput = $('skipHoldInput');
+const skipHoldMinus = $('skipHoldMinus');
+const skipHoldPlus = $('skipHoldPlus');
+const keepScreenToggle = $('keepScreenToggle');
+const defaultFinishInput = $('defaultFinishInput');
+const minimalToggle = $('minimalToggle');
+const hapticsToggle = $('hapticsToggle');
 const recentWindowInput = $('recentWindowInput');
 const recentWindowMinus = $('recentWindowMinus');
 const recentWindowPlus = $('recentWindowPlus');
+
+function persistPref(key, value) {
+    try {
+        localStorage.setItem(key, value);
+    } catch (e) {
+        // Ignore storage errors
+    }
+}
+
+function haptic(pattern) {
+    if (!hapticsEnabled || !navigator.vibrate) return;
+    navigator.vibrate(pattern);
+}
+
+let screenWakeLock = null;
+
+async function requestScreenWakeLock() {
+    if (!keepScreenOn || !('wakeLock' in navigator)) return;
+    if (document.visibilityState !== 'visible') return;
+    try {
+        if (screenWakeLock) return;
+        screenWakeLock = await navigator.wakeLock.request('screen');
+        screenWakeLock.addEventListener('release', () => {
+            screenWakeLock = null;
+        });
+    } catch (e) {
+        screenWakeLock = null;
+    }
+}
+
+function releaseScreenWakeLock() {
+    if (!screenWakeLock) return;
+    screenWakeLock.release().catch(() => {});
+    screenWakeLock = null;
+}
+
+function applyKeepScreenOn() {
+    if (keepScreenToggle) {
+        keepScreenToggle.classList.toggle('on', keepScreenOn);
+        keepScreenToggle.setAttribute('aria-checked', keepScreenOn ? 'true' : 'false');
+    }
+    if (keepScreenOn) {
+        requestScreenWakeLock();
+    } else {
+        releaseScreenWakeLock();
+    }
+}
 
 // Persistent state management - saves timer state to survive tab close/phone sleep
 function saveTimerState() {
@@ -228,9 +294,7 @@ function addSeconds(seconds) {
     totalSeconds = currentSeconds;
 
     updateDisplay();
-    if (navigator.vibrate) {
-        navigator.vibrate(10);
-    }
+    haptic(10);
 }
 
 function showAddTimeDialog() {
@@ -412,9 +476,7 @@ function toggleRateUnit() {
     } catch (e) {
         // Ignore storage errors
     }
-    if (navigator.vibrate) {
-        navigator.vibrate(10);
-    }
+    haptic(10);
     refreshRateDisplays();
 }
 
@@ -908,9 +970,7 @@ function recordDelivery(skipped = false) {
     updateHistory();
     startTicker();
 
-    if (navigator.vibrate) {
-        navigator.vibrate(skipped ? 500 : 30);
-    }
+    haptic(skipped ? 500 : 30);
 }
 
 // Undo last delivery
@@ -934,9 +994,7 @@ function undoLast() {
     updateHistory();
     startTicker();
 
-    if (navigator.vibrate) {
-        navigator.vibrate(20);
-    }
+    haptic(20);
 }
 
 // Show reset confirmation dialog
@@ -997,6 +1055,7 @@ function resetAll() {
     startBtn.classList.remove('hidden');
     deliveredBtn.classList.add('hidden');
     addTimeBtn.classList.remove('hidden');
+    finishTimeInput.value = defaultFinishTime;
 
     perHourEl.textContent = formatRate(0);
     avgTimeEl.textContent = '--:--';
@@ -1048,10 +1107,76 @@ function toggleSound() {
 }
 
 // Toggle minimal mode
+function applyMinimalMode() {
+    document.body.classList.toggle('minimal-mode', isMinimalMode);
+    if (minimalToggle) {
+        minimalToggle.classList.toggle('on', isMinimalMode);
+        minimalToggle.setAttribute('aria-checked', isMinimalMode ? 'true' : 'false');
+    }
+}
+
 function toggleMinimalMode() {
     isMinimalMode = !isMinimalMode;
-    document.body.classList.toggle('minimal-mode', isMinimalMode);
-    localStorage.setItem('deliveryTimerMinimalMode', isMinimalMode.toString());
+    applyMinimalMode();
+    persistPref('deliveryTimerMinimalMode', isMinimalMode.toString());
+}
+
+function applyHapticsToggle() {
+    if (!hapticsToggle) return;
+    hapticsToggle.classList.toggle('on', hapticsEnabled);
+    hapticsToggle.setAttribute('aria-checked', hapticsEnabled ? 'true' : 'false');
+}
+
+function toggleHaptics() {
+    hapticsEnabled = !hapticsEnabled;
+    applyHapticsToggle();
+    persistPref(HAPTICS_KEY, hapticsEnabled.toString());
+    if (hapticsEnabled) haptic(20);
+}
+
+function toggleKeepScreenOn() {
+    keepScreenOn = !keepScreenOn;
+    persistPref(KEEP_SCREEN_KEY, keepScreenOn.toString());
+    applyKeepScreenOn();
+}
+
+function applyDefaultFinishControls() {
+    if (defaultFinishInput) defaultFinishInput.value = defaultFinishTime;
+}
+
+function setDefaultFinishTime(value) {
+    if (!value || !/^\d{2}:\d{2}$/.test(value)) return;
+    defaultFinishTime = value;
+    applyDefaultFinishControls();
+    persistPref(DEFAULT_FINISH_KEY, defaultFinishTime);
+    if (!hasStarted) {
+        finishTimeInput.value = defaultFinishTime;
+        updateDisplay();
+    }
+}
+
+function formatHoldSeconds(ms) {
+    return (ms / 1000).toFixed(2);
+}
+
+function applySkipHoldDuration() {
+    document.documentElement.style.setProperty('--skip-hold-ms', `${skipHoldMs}ms`);
+    if (skipHoldInput) skipHoldInput.value = formatHoldSeconds(skipHoldMs);
+    if (skipHoldMinus) skipHoldMinus.disabled = skipHoldMs <= MIN_SKIP_HOLD_MS;
+    if (skipHoldPlus) skipHoldPlus.disabled = skipHoldMs >= MAX_SKIP_HOLD_MS;
+    if (skipHoldHint) {
+        skipHoldHint.textContent = `Hold DELIVERED for ${formatHoldSeconds(skipHoldMs)}s to log a stuck stop without using its time in Recent, Avg, Best, or Est. Finish.`;
+    }
+}
+
+function setSkipHoldMs(value) {
+    const parsed = typeof value === 'number' ? value : Math.round(parseFloat(value) * 1000);
+    const next = Number.isFinite(parsed)
+        ? Math.max(MIN_SKIP_HOLD_MS, Math.min(MAX_SKIP_HOLD_MS, parsed))
+        : DEFAULT_SKIP_HOLD_MS;
+    skipHoldMs = next;
+    applySkipHoldDuration();
+    persistPref(SKIP_HOLD_MS_KEY, String(skipHoldMs));
 }
 
 function applyHistoryVisibility() {
@@ -1133,6 +1258,18 @@ settingsOverlay.addEventListener('click', (e) => {
 });
 historyToggle.addEventListener('click', toggleShowHistory);
 skipHoldToggle.addEventListener('click', toggleSkipHold);
+keepScreenToggle.addEventListener('click', toggleKeepScreenOn);
+hapticsToggle.addEventListener('click', toggleHaptics);
+minimalToggle.addEventListener('click', toggleMinimalMode);
+defaultFinishInput.addEventListener('change', () => setDefaultFinishTime(defaultFinishInput.value));
+skipHoldMinus.addEventListener('click', () => setSkipHoldMs(skipHoldMs - SKIP_HOLD_STEP_MS));
+skipHoldPlus.addEventListener('click', () => setSkipHoldMs(skipHoldMs + SKIP_HOLD_STEP_MS));
+skipHoldInput.addEventListener('change', function() {
+    setSkipHoldMs(skipHoldInput.value);
+});
+skipHoldInput.addEventListener('blur', function() {
+    applySkipHoldDuration();
+});
 recentWindowMinus.addEventListener('click', () => setRecentWindow(recentWindow - 1));
 recentWindowPlus.addEventListener('click', () => setRecentWindow(recentWindow + 1));
 recentWindowInput.addEventListener('input', function() {
@@ -1259,7 +1396,7 @@ function onDeliveredPointerDown(e) {
         skipHoldCompleted = true;
         deliveredBtn.classList.remove('is-holding');
         recordDelivery(true);
-    }, SKIP_HOLD_MS);
+    }, skipHoldMs);
 }
 
 function onDeliveredPointerUp(e) {
@@ -1295,12 +1432,14 @@ confirmOverlay.addEventListener('click', function(e) {
 
 // Handle page visibility changes - recalculate times when returning to app
 document.addEventListener('visibilitychange', function() {
-    if (document.visibilityState === 'visible' && hasStarted) {
-        // User returned to app - immediately recalculate elapsed times
-        calculateElapsedTimes();
-        updateDisplay();
-        updateHistory();
-        startTicker();
+    if (document.visibilityState === 'visible') {
+        applyKeepScreenOn();
+        if (hasStarted) {
+            calculateElapsedTimes();
+            updateDisplay();
+            updateHistory();
+            startTicker();
+        }
     }
 });
 
@@ -1339,8 +1478,8 @@ applySoundIcons();
 
 if (localStorage.getItem('deliveryTimerMinimalMode') === 'true') {
     isMinimalMode = true;
-    document.body.classList.add('minimal-mode');
 }
+applyMinimalMode();
 
 if (localStorage.getItem(RATE_UNIT_KEY) === 'perStop') {
     rateUnit = 'perStop';
@@ -1355,6 +1494,28 @@ if (localStorage.getItem(SKIP_HOLD_KEY) === 'false') {
     skipHoldEnabled = false;
 }
 applySkipHoldToggle();
+
+if (localStorage.getItem(KEEP_SCREEN_KEY) === 'false') {
+    keepScreenOn = false;
+}
+applyKeepScreenOn();
+
+if (localStorage.getItem(HAPTICS_KEY) === 'false') {
+    hapticsEnabled = false;
+}
+applyHapticsToggle();
+
+const savedFinish = localStorage.getItem(DEFAULT_FINISH_KEY);
+if (savedFinish && /^\d{2}:\d{2}$/.test(savedFinish)) {
+    defaultFinishTime = savedFinish;
+}
+applyDefaultFinishControls();
+
+const savedHoldMs = parseInt(localStorage.getItem(SKIP_HOLD_MS_KEY), 10);
+if (Number.isFinite(savedHoldMs)) {
+    skipHoldMs = Math.max(MIN_SKIP_HOLD_MS, Math.min(MAX_SKIP_HOLD_MS, savedHoldMs));
+}
+applySkipHoldDuration();
 
 const savedRecentWindow = parseInt(localStorage.getItem(RECENT_WINDOW_KEY), 10);
 if (Number.isFinite(savedRecentWindow)) {
@@ -1398,7 +1559,7 @@ function initializeFromSavedState() {
 
 function applyDefaultFinishTime() {
     if (!finishTimeInput.value) {
-        finishTimeInput.value = DEFAULT_FINISH_TIME;
+        finishTimeInput.value = defaultFinishTime;
     }
 }
 
@@ -1411,3 +1572,7 @@ if (!initializeFromSavedState()) {
 if ('serviceWorker' in navigator && window.location.protocol !== 'file:') {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
+
+window.addEventListener('pointerdown', () => {
+    if (keepScreenOn) requestScreenWakeLock();
+});
