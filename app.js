@@ -19,6 +19,7 @@ let isRunning = false;
 let hasStarted = false;
 let deliveries = [];
 let intervalId = null;
+let lastSavedTotalSeconds = -1;
 let bestTime = Infinity;
 let isDark = true;
 let soundEnabled = true;
@@ -614,15 +615,45 @@ function updateHistory() {
     }).join('');
 }
 
-// Timer tick function - called every second to update display
-// Actual time tracking is now timestamp-based for persistence
+// Schedule the next paint at the upcoming whole elapsed second so a hitch
+// cannot skip a displayed second the way setInterval(1000) can.
+function stopTicker() {
+    if (intervalId !== null) {
+        clearTimeout(intervalId);
+        intervalId = null;
+    }
+}
+
+function msUntilNextWholeSecond() {
+    if (!hasStarted || !deliveryStartTimestamp) return 1000;
+    const now = Date.now();
+    let elapsed = now - deliveryStartTimestamp - deliveryPausedMs;
+    if (pauseStartTimestamp !== null) {
+        elapsed -= now - pauseStartTimestamp;
+    }
+    elapsed = Math.max(0, elapsed);
+    const remainder = elapsed % 1000;
+    const delay = 1000 - remainder;
+    return delay < 24 ? delay + 1000 : delay;
+}
+
+function startTicker() {
+    stopTicker();
+    const fire = () => {
+        tick();
+        if (!hasStarted) return;
+        intervalId = setTimeout(fire, msUntilNextWholeSecond());
+    };
+    intervalId = setTimeout(fire, msUntilNextWholeSecond());
+}
+
 function tick() {
     calculateElapsedTimes();
     updateDisplay();
-    
-    // Periodically save state (every 5 seconds to reduce writes)
-    if (totalSeconds % 5 === 0) {
-        saveTimerState();
+
+    if (totalSeconds !== lastSavedTotalSeconds && totalSeconds % 5 === 0) {
+        lastSavedTotalSeconds = totalSeconds;
+        setTimeout(saveTimerState, 0);
     }
 }
 
@@ -652,10 +683,7 @@ function startSession() {
     addTimeBtn.classList.add('hidden');
     hideResetConfirm();
     
-    if (intervalId) {
-        clearInterval(intervalId); // Clear any existing interval
-    }
-    intervalId = setInterval(tick, 1000);
+    startTicker();
     
     // Save state immediately
     saveTimerState();
@@ -698,6 +726,7 @@ function togglePause() {
     
     saveTimerState();
     updateDisplay();
+    startTicker();
 }
 
 // Record a delivery
@@ -761,6 +790,7 @@ function recordDelivery() {
     saveTimerState();
     updateDisplay();
     updateHistory();
+    startTicker();
 
     if (navigator.vibrate) {
         navigator.vibrate(30);
@@ -789,6 +819,7 @@ function undoLast() {
     saveTimerState();
     updateDisplay();
     updateHistory();
+    startTicker();
 
     if (navigator.vibrate) {
         navigator.vibrate(20);
@@ -822,10 +853,8 @@ function hideResetConfirm() {
 function resetAll() {
     hideResetConfirm();
     
-    if (intervalId) {
-        clearInterval(intervalId);
-        intervalId = null;
-    }
+    stopTicker();
+    lastSavedTotalSeconds = -1;
 
     // Reset all state including timestamps
     currentSeconds = 0;
@@ -869,10 +898,7 @@ function resetAll() {
 }
 
 function applyThemeIcons() {
-    const sun = themeToggle.querySelector('.icon-sun');
-    const moon = themeToggle.querySelector('.icon-moon');
-    if (sun) sun.hidden = !isDark;
-    if (moon) moon.hidden = isDark;
+    themeToggle.textContent = isDark ? '🌙' : '☀️';
     themeToggle.setAttribute(
         'aria-label',
         isDark ? 'Switch to light theme' : 'Switch to dark theme'
@@ -889,10 +915,7 @@ function toggleTheme() {
 }
 
 function applySoundIcons() {
-    const soundOn = soundToggle.querySelector('.icon-sound-on');
-    const soundOff = soundToggle.querySelector('.icon-sound-off');
-    if (soundOn) soundOn.hidden = !soundEnabled;
-    if (soundOff) soundOff.hidden = soundEnabled;
+    soundToggle.textContent = soundEnabled ? '🔊' : '🔇';
     soundToggle.classList.toggle('muted', !soundEnabled);
     soundToggle.setAttribute(
         'aria-label',
@@ -1059,6 +1082,7 @@ document.addEventListener('visibilitychange', function() {
         calculateElapsedTimes();
         updateDisplay();
         updateHistory();
+        startTicker();
     }
 });
 
@@ -1067,15 +1091,14 @@ window.addEventListener('focus', function() {
     if (hasStarted) {
         calculateElapsedTimes();
         updateDisplay();
+        startTicker();
     }
 });
 
 // Save state before page unload
 window.addEventListener('beforeunload', function() {
     saveTimerState();
-    if (intervalId) {
-        clearInterval(intervalId);
-    }
+    stopTicker();
 });
 
 // Also save state when page becomes hidden (mobile Chrome/Safari)
@@ -1130,11 +1153,7 @@ function initializeFromSavedState() {
         // Calculate current times from timestamps
         calculateElapsedTimes();
         
-        // Start the display update interval
-        if (intervalId) {
-            clearInterval(intervalId);
-        }
-        intervalId = setInterval(tick, 1000);
+        startTicker();
 
         applyDefaultFinishTime();
         

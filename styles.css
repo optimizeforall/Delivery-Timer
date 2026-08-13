@@ -117,7 +117,7 @@ body.light {
     border-radius: 999px;
     background: transparent;
     color: inherit;
-    font-size: 16px;
+    font-size: 18px;
     line-height: 1;
     cursor: pointer;
     padding: 0;
@@ -127,14 +127,6 @@ body.light {
 
 .light .icon-toggle {
     border-color: rgba(28, 27, 25, 0.1);
-}
-
-.icon-toggle svg {
-    display: block;
-}
-
-.icon-toggle svg[hidden] {
-    display: none;
 }
 
 .icon-toggle:active {
