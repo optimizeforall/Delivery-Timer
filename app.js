@@ -43,6 +43,15 @@ let totalPausedMs = 0;                // Total paused duration for session
 let deliveryPausedMs = 0;             // Paused duration for current delivery
 let pauseStartTimestamp = null;       // When pause started (null if not paused)
 
+let sprintDurationMs = 0;
+let sprintStartTimestamp = null;
+let sprintPausedMs = 0;
+let sprintStartDeliveryCount = 0;
+let pausedForSprintPicker = false;
+let overlayMode = null;
+let sprintResultRate = 0;
+let pendingSprintResults = null;
+
 const MIN_SPLIT_COUNT = 1;
 const MAX_SPLIT_COUNT = 99;
 const STATE_STORAGE_KEY = 'deliveryTimerState';
@@ -106,6 +115,9 @@ const splitPlus = $('splitPlus');
 const splitValue = $('splitValue');
 const titleEl = document.querySelector('.header h1');
 const addTimeBtn = $('addTimeBtn');
+const sprintBtn = $('sprintBtn');
+const sprintSection = $('sprintSection');
+const sprintTimeEl = $('sprintTime');
 const settingsBtn = $('settingsBtn');
 const settingsOverlay = $('settingsOverlay');
 const settingsClose = $('settingsClose');
@@ -187,6 +199,12 @@ function saveTimerState() {
         targetStops: targetInput.value,
         finishTime: finishTimeInput.value,
         splitCount,
+        sprintDurationMs,
+        sprintStartTimestamp,
+        sprintPausedMs,
+        sprintStartDeliveryCount,
+        pausedForSprintPicker,
+        pendingSprintResults,
         savedAt: Date.now()
     };
     
@@ -227,6 +245,15 @@ function loadTimerState() {
         deliveries = (state.deliveries || []).map(normalizeDelivery);
         bestTime = state.bestTime === null ? Infinity : state.bestTime;
         splitCount = state.splitCount || 1;
+        sprintDurationMs = state.sprintDurationMs || 0;
+        sprintStartTimestamp = state.sprintStartTimestamp || null;
+        sprintPausedMs = state.sprintPausedMs || 0;
+        sprintStartDeliveryCount = state.sprintStartDeliveryCount || 0;
+        pausedForSprintPicker = !!state.pausedForSprintPicker;
+        pendingSprintResults = state.pendingSprintResults || null;
+        if (pendingSprintResults) {
+            sprintResultRate = pendingSprintResults.rate || 0;
+        }
         
         // Restore inputs
         if (state.targetStops) targetInput.value = state.targetStops;
@@ -297,10 +324,9 @@ function addSeconds(seconds) {
     haptic(10);
 }
 
-function showAddTimeDialog() {
-    if (hasStarted) return;
-    confirmTitle.textContent = 'Add Time';
-    confirmText.textContent = 'Add time you already worked before starting the timer.';
+function showDurationDialog({ title, text, chips, applyLabel, closeOnEmpty, onApply }) {
+    confirmTitle.textContent = title;
+    confirmText.textContent = text;
     summaryStats.style.display = 'none';
     summaryStats.innerHTML = '';
     confirmClose.classList.remove('hidden');
@@ -308,20 +334,18 @@ function showAddTimeDialog() {
     confirmButtons.innerHTML = `
         <div style="width:100%">
             <div class="add-time-chips">
-                <button type="button" class="add-time-chip" data-mins="1">+1 min</button>
-                <button type="button" class="add-time-chip" data-mins="5">+5 min</button>
-                <button type="button" class="add-time-chip" data-mins="10">+10 min</button>
+                ${chips.map(m => `<button type="button" class="add-time-chip" data-mins="${m}">+${m} min</button>`).join('')}
             </div>
             <div class="add-time-custom">
-                <input type="number" class="add-time-input" id="addTimeCustomInput" min="1" max="999" step="1" inputmode="numeric" pattern="[0-9]*" placeholder="min">
+                <input type="number" class="add-time-input" id="durationCustomInput" min="1" max="999" step="1" inputmode="numeric" pattern="[0-9]*" placeholder="min">
             </div>
-            <button type="button" class="confirm-btn confirm-done" id="addTimeApplyBtn" style="width:100%">Add</button>
+            <button type="button" class="confirm-btn confirm-done" id="durationApplyBtn" style="width:100%">${applyLabel}</button>
         </div>
     `;
     confirmOverlay.classList.add('visible');
 
-    const customInput = document.getElementById('addTimeCustomInput');
-    const applyBtn = document.getElementById('addTimeApplyBtn');
+    const customInput = document.getElementById('durationCustomInput');
+    const applyBtn = document.getElementById('durationApplyBtn');
 
     confirmButtons.querySelectorAll('.add-time-chip').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -334,9 +358,10 @@ function showAddTimeDialog() {
     const applyCustom = () => {
         const mins = parseInt(customInput.value, 10);
         if (mins && mins > 0) {
-            addSeconds(mins * 60);
+            onApply(mins);
+            return;
         }
-        hideResetConfirm();
+        if (closeOnEmpty) hideResetConfirm();
     };
     applyBtn.addEventListener('click', applyCustom);
     customInput.addEventListener('keydown', (e) => {
@@ -345,6 +370,207 @@ function showAddTimeDialog() {
             applyCustom();
         }
     });
+}
+
+function showAddTimeDialog() {
+    if (hasStarted) return;
+    overlayMode = 'addTime';
+    showDurationDialog({
+        title: 'Add Time',
+        text: 'Add time you already worked before starting the timer.',
+        chips: [1, 5, 10],
+        applyLabel: 'Add',
+        closeOnEmpty: true,
+        onApply: (mins) => {
+            addSeconds(mins * 60);
+            hideResetConfirm();
+        }
+    });
+}
+
+function isSprintActive() {
+    return sprintStartTimestamp !== null && sprintDurationMs > 0;
+}
+
+function getSprintElapsedMs(now = Date.now()) {
+    if (!sprintStartTimestamp) return 0;
+    let elapsed = now - sprintStartTimestamp - sprintPausedMs;
+    if (pauseStartTimestamp !== null) {
+        elapsed -= (now - pauseStartTimestamp);
+    }
+    return Math.max(0, elapsed);
+}
+
+function getSprintRemainingMs(now = Date.now()) {
+    if (!isSprintActive()) return 0;
+    return Math.max(0, sprintDurationMs - getSprintElapsedMs(now));
+}
+
+function getSprintStopCount() {
+    if (!isSprintActive()) return 0;
+    return deliveries.slice(sprintStartDeliveryCount).filter(d => !isSkipped(d)).length;
+}
+
+function clearSprintState() {
+    sprintDurationMs = 0;
+    sprintStartTimestamp = null;
+    sprintPausedMs = 0;
+    sprintStartDeliveryCount = 0;
+}
+
+function applyPauseDuration(now, { includeDelivery = true } = {}) {
+    if (pauseStartTimestamp === null) return;
+    const pausedDuration = now - pauseStartTimestamp;
+    totalPausedMs += pausedDuration;
+    if (includeDelivery) deliveryPausedMs += pausedDuration;
+    if (isSprintActive()) sprintPausedMs += pausedDuration;
+    pauseStartTimestamp = null;
+}
+
+function pauseForSprintPicker() {
+    pausedForSprintPicker = false;
+    if (isRunning) {
+        togglePause();
+        pausedForSprintPicker = true;
+    }
+}
+
+function resumeAfterSprintPicker() {
+    if (!pausedForSprintPicker) return;
+    pausedForSprintPicker = false;
+    if (!isRunning) togglePause();
+}
+
+function updateSprintButton() {
+    if (!sprintBtn) return;
+    if (!hasStarted) {
+        sprintBtn.classList.add('hidden');
+        sprintBtn.classList.remove('sprint-active');
+        sprintBtn.setAttribute('aria-label', 'Start sprint');
+        return;
+    }
+    sprintBtn.classList.remove('hidden');
+    sprintBtn.classList.toggle('sprint-active', isSprintActive());
+    sprintBtn.setAttribute('aria-label', isSprintActive() ? 'End sprint' : 'Start sprint');
+}
+
+function updateSprintDisplay() {
+    if (!sprintSection || !sprintTimeEl) return;
+    if (!isSprintActive()) {
+        sprintSection.classList.add('hidden');
+        sprintTimeEl.classList.remove('paused');
+        updateSprintButton();
+        return;
+    }
+    const remainingSecs = Math.ceil(getSprintRemainingMs() / 1000);
+    sprintTimeEl.textContent = formatTime(remainingSecs);
+    sprintTimeEl.classList.toggle('paused', !isRunning);
+    sprintSection.classList.remove('hidden');
+    updateSprintButton();
+}
+
+function showSprintDialog() {
+    if (!hasStarted || isSprintActive()) return;
+    overlayMode = 'sprintPicker';
+    pauseForSprintPicker();
+    showDurationDialog({
+        title: 'Sprint',
+        text: 'Count how many stops you log in this window. The session timer keeps running.',
+        chips: [15, 30, 60],
+        applyLabel: 'Start',
+        closeOnEmpty: false,
+        onApply: (mins) => startSprint(mins * 60 * 1000)
+    });
+}
+
+function startSprint(durationMs) {
+    if (!hasStarted || durationMs <= 0) return;
+    overlayMode = null;
+    confirmClose.classList.add('hidden');
+    confirmOverlay.classList.remove('visible');
+    resumeAfterSprintPicker();
+
+    sprintDurationMs = durationMs;
+    sprintStartTimestamp = Date.now();
+    sprintPausedMs = 0;
+    sprintStartDeliveryCount = deliveries.length;
+
+    updateSprintDisplay();
+    saveTimerState();
+    haptic(10);
+}
+
+function completeSprint(endedEarly) {
+    if (!isSprintActive()) return;
+
+    const elapsedMs = endedEarly
+        ? getSprintElapsedMs()
+        : sprintDurationMs;
+    const stops = getSprintStopCount();
+    const elapsedSeconds = Math.max(0, Math.round(elapsedMs / 1000));
+    sprintResultRate = elapsedSeconds > 0 && stops > 0
+        ? stops / (elapsedSeconds / 3600)
+        : 0;
+    pendingSprintResults = {
+        stops,
+        elapsedSeconds,
+        endedEarly: !!endedEarly,
+        rate: sprintResultRate
+    };
+
+    clearSprintState();
+    updateSprintDisplay();
+    saveTimerState();
+    showSprintResults(stops, elapsedSeconds, endedEarly);
+    haptic(30);
+}
+
+function showSprintResults(stops, elapsedSeconds, endedEarly) {
+    overlayMode = 'sprintResults';
+    confirmTitle.textContent = endedEarly ? 'Sprint ended' : 'Sprint complete';
+    confirmText.textContent = 'Session timer is still running.';
+    confirmClose.classList.remove('hidden');
+    summaryStats.style.display = 'flex';
+    summaryStats.innerHTML = `
+        <div class="summary-row"><span class="label">Stops</span><span class="value">${stops}</span></div>
+        <div class="summary-row"><span class="label">Time</span><span class="value">${formatTime(elapsedSeconds, elapsedSeconds >= 3600)}</span></div>
+        <div class="summary-row"><span class="label">Rate</span><span class="value rate-toggle" id="sprintResultRate">${formatRate(sprintResultRate)}</span></div>
+    `;
+    confirmButtons.innerHTML = `
+        <button type="button" class="confirm-btn confirm-done" id="sprintDoneBtn" style="width:100%">Done</button>
+    `;
+    confirmOverlay.classList.add('visible');
+
+    const doneBtn = document.getElementById('sprintDoneBtn');
+    if (doneBtn) doneBtn.addEventListener('click', hideResetConfirm);
+    bindRateToggle($('sprintResultRate'));
+}
+
+function showEndSprintConfirm() {
+    if (!isSprintActive()) return;
+    overlayMode = 'endSprint';
+    confirmTitle.textContent = 'End sprint?';
+    confirmText.textContent = 'This will stop the countdown and show your results. The session timer keeps running.';
+    summaryStats.style.display = 'none';
+    summaryStats.innerHTML = '';
+    confirmClose.classList.add('hidden');
+    confirmButtons.innerHTML = `
+        <button type="button" class="confirm-btn confirm-cancel" id="endSprintCancelBtn">Cancel</button>
+        <button type="button" class="confirm-btn confirm-yes" id="endSprintYesBtn">End</button>
+    `;
+    confirmOverlay.classList.add('visible');
+
+    document.getElementById('endSprintCancelBtn').addEventListener('click', hideResetConfirm);
+    document.getElementById('endSprintYesBtn').addEventListener('click', () => completeSprint(true));
+}
+
+function onSprintBtnClick() {
+    if (!hasStarted) return;
+    if (isSprintActive()) {
+        showEndSprintConfirm();
+        return;
+    }
+    showSprintDialog();
 }
 
 // Initialize audio context
@@ -486,7 +712,9 @@ function refreshRateDisplays() {
 
     const summaryRate = summaryStats && summaryStats.querySelector('.rate-toggle');
     if (confirmOverlay.classList.contains('visible') && summaryRate) {
-        summaryRate.textContent = formatRate(getOverallRate());
+        summaryRate.textContent = formatRate(
+            overlayMode === 'sprintResults' ? sprintResultRate : getOverallRate()
+        );
     }
 }
 
@@ -763,6 +991,7 @@ function updateDisplay() {
     updateEstimate();
     updatePaceNeeded();
     updateProgress();
+    updateSprintDisplay();
 
     undoBtn.disabled = deliveries.length === 0;
     
@@ -825,6 +1054,9 @@ function startTicker() {
 
 function tick() {
     calculateElapsedTimes();
+    if (isSprintActive() && getSprintRemainingMs() <= 0) {
+        completeSprint(false);
+    }
     updateDisplay();
 
     if (totalSeconds !== lastSavedTotalSeconds && totalSeconds % 5 === 0) {
@@ -857,6 +1089,7 @@ function startSession() {
     deliveredBtn.classList.remove('hidden');
     pauseBtn.classList.remove('hidden');
     addTimeBtn.classList.add('hidden');
+    updateSprintButton();
     hideResetConfirm();
     
     startTicker();
@@ -887,13 +1120,7 @@ function togglePause() {
         // Resuming
         isRunning = true;
         
-        // Add paused duration to totals
-        if (pauseStartTimestamp !== null) {
-            const pausedDuration = now - pauseStartTimestamp;
-            totalPausedMs += pausedDuration;
-            deliveryPausedMs += pausedDuration;
-            pauseStartTimestamp = null;
-        }
+        applyPauseDuration(now, { includeDelivery: true });
         
         pauseBtn.textContent = 'PAUSE';
         pauseBtn.classList.remove('paused');
@@ -954,11 +1181,7 @@ function recordDelivery(skipped = false) {
     // If paused, resume when recording delivery
     if (!isRunning) {
         isRunning = true;
-        if (pauseStartTimestamp !== null) {
-            const pausedDuration = now - pauseStartTimestamp;
-            totalPausedMs += pausedDuration;
-            pauseStartTimestamp = null;
-        }
+        applyPauseDuration(now, { includeDelivery: false });
         pauseBtn.textContent = 'PAUSE';
         pauseBtn.classList.remove('paused');
         currentTimeEl.classList.remove('paused');
@@ -999,6 +1222,7 @@ function undoLast() {
 
 // Show reset confirmation dialog
 function showResetConfirm() {
+    overlayMode = 'reset';
     confirmTitle.textContent = 'Reset All Data?';
     confirmText.textContent = 'This will clear all deliveries and times. This cannot be undone.';
     summaryStats.style.display = 'none';
@@ -1016,8 +1240,19 @@ function showResetConfirm() {
 
 // Hide confirmation dialog
 function hideResetConfirm() {
+    const wasSprintPicker = overlayMode === 'sprintPicker';
+    const wasSprintResults = overlayMode === 'sprintResults';
+    overlayMode = null;
     confirmClose.classList.add('hidden');
     confirmOverlay.classList.remove('visible');
+    summaryStats.style.display = 'none';
+    summaryStats.innerHTML = '';
+    if (wasSprintPicker) resumeAfterSprintPicker();
+    if (wasSprintResults && pendingSprintResults) {
+        pendingSprintResults = null;
+        sprintResultRate = 0;
+        saveTimerState();
+    }
 }
 
 // Reset all data
@@ -1043,6 +1278,11 @@ function resetAll() {
     deliveryPausedMs = 0;
     pauseStartTimestamp = null;
     addedTimeMs = 0;
+    pausedForSprintPicker = false;
+    overlayMode = null;
+    sprintResultRate = 0;
+    pendingSprintResults = null;
+    clearSprintState();
     
     // Clear persisted state
     clearTimerState();
@@ -1055,6 +1295,7 @@ function resetAll() {
     startBtn.classList.remove('hidden');
     deliveredBtn.classList.add('hidden');
     addTimeBtn.classList.remove('hidden');
+    updateSprintDisplay();
     finishTimeInput.value = defaultFinishTime;
 
     perHourEl.textContent = formatRate(0);
@@ -1248,6 +1489,19 @@ pauseBtn.addEventListener('click', togglePause);
 resetBtn.addEventListener('click', showResetConfirm);
 undoBtn.addEventListener('click', undoLast);
 addTimeBtn.addEventListener('click', showAddTimeDialog);
+if (sprintBtn) sprintBtn.addEventListener('click', onSprintBtnClick);
+if (sprintSection) {
+    sprintSection.addEventListener('click', () => {
+        if (isSprintActive()) completeSprint(true);
+    });
+    sprintSection.addEventListener('keydown', (e) => {
+        if (!isSprintActive()) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            completeSprint(true);
+        }
+    });
+}
 settingsBtn.addEventListener('click', showSettings);
 settingsClose.addEventListener('click', hideSettings);
 confirmClose.addEventListener('click', hideResetConfirm);
@@ -1436,6 +1690,9 @@ document.addEventListener('visibilitychange', function() {
         applyKeepScreenOn();
         if (hasStarted) {
             calculateElapsedTimes();
+            if (isSprintActive() && getSprintRemainingMs() <= 0) {
+                completeSprint(false);
+            }
             updateDisplay();
             updateHistory();
             startTicker();
@@ -1447,6 +1704,9 @@ document.addEventListener('visibilitychange', function() {
 window.addEventListener('focus', function() {
     if (hasStarted) {
         calculateElapsedTimes();
+        if (isSprintActive() && getSprintRemainingMs() <= 0) {
+            completeSprint(false);
+        }
         updateDisplay();
         startTicker();
     }
@@ -1539,6 +1799,10 @@ function initializeFromSavedState() {
             pauseBtn.classList.add('paused');
             currentTimeEl.classList.add('paused');
         }
+
+        if (pausedForSprintPicker) {
+            resumeAfterSprintPicker();
+        }
         
         // Calculate current times from timestamps
         calculateElapsedTimes();
@@ -1551,6 +1815,16 @@ function initializeFromSavedState() {
         updateDisplay();
         updateHistory();
         updateSplitControls();
+
+        if (pendingSprintResults) {
+            showSprintResults(
+                pendingSprintResults.stops,
+                pendingSprintResults.elapsedSeconds,
+                pendingSprintResults.endedEarly
+            );
+        } else if (isSprintActive() && getSprintRemainingMs() <= 0) {
+            completeSprint(false);
+        }
         
         return true;
     }

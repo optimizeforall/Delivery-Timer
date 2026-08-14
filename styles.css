@@ -152,6 +152,27 @@ body.light {
     opacity: 0.4;
 }
 
+.icon-toggle.hidden {
+    display: none;
+}
+
+.sprint-icon {
+    width: 1.15em;
+    height: 1.15em;
+    display: block;
+}
+
+.icon-toggle.sprint-active {
+    color: var(--accent);
+    border-color: rgba(255, 107, 53, 0.45);
+    background: rgba(255, 107, 53, 0.12);
+}
+
+.light .icon-toggle.sprint-active {
+    border-color: rgba(234, 88, 12, 0.35);
+    background: rgba(234, 88, 12, 0.12);
+}
+
 .stats-bar {
     display: flex;
     align-items: center;
@@ -763,6 +784,47 @@ body.light {
 
 .light .total-time {
     color: rgba(0,0,0,0.75);
+}
+
+.sprint-section {
+    margin-top: 10px;
+    text-align: center;
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.sprint-section.hidden {
+    display: none;
+}
+
+.sprint-label {
+    font-size: var(--label);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+}
+
+.dark .sprint-label {
+    color: rgba(255,255,255,0.4);
+}
+
+.light .sprint-label {
+    color: rgba(0,0,0,0.4);
+}
+
+.sprint-time {
+    font-size: 20px;
+    font-weight: 350;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    margin-top: 2px;
+    color: var(--accent);
+    transition: opacity 0.15s ease;
+}
+
+.sprint-time.paused {
+    opacity: 0.4;
 }
 
 .history-section {
@@ -1744,6 +1806,7 @@ body.light {
     .btn-main { height: 100px; font-size: 26px; }
     .main-display { padding: 8px 16px; }
     .total-section { margin-top: 8px; }
+    .sprint-section { margin-top: 6px; }
     .delivery-count { margin-top: 4px; font-size: 15px; }
     .hide-history .delivery-count { margin-top: 8px; font-size: 20px; }
 }
