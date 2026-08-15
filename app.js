@@ -47,6 +47,9 @@ let sprintDurationMs = 0;
 let sprintStartTimestamp = null;
 let sprintPausedMs = 0;
 let sprintStartDeliveryCount = 0;
+let sprintKind = 'minutes';
+let sprintStopGoal = 0;
+let sprintUntilEnd = false;
 let pausedForSprintPicker = false;
 let overlayMode = null;
 let sprintResultRate = 0;
@@ -118,6 +121,7 @@ const addTimeBtn = $('addTimeBtn');
 const sprintBtn = $('sprintBtn');
 const sprintSection = $('sprintSection');
 const sprintTimeEl = $('sprintTime');
+const sprintModeToggle = $('sprintModeToggle');
 const settingsBtn = $('settingsBtn');
 const settingsOverlay = $('settingsOverlay');
 const settingsClose = $('settingsClose');
@@ -203,6 +207,9 @@ function saveTimerState() {
         sprintStartTimestamp,
         sprintPausedMs,
         sprintStartDeliveryCount,
+        sprintKind,
+        sprintStopGoal,
+        sprintUntilEnd,
         pausedForSprintPicker,
         pendingSprintResults,
         savedAt: Date.now()
@@ -249,6 +256,9 @@ function loadTimerState() {
         sprintStartTimestamp = state.sprintStartTimestamp || null;
         sprintPausedMs = state.sprintPausedMs || 0;
         sprintStartDeliveryCount = state.sprintStartDeliveryCount || 0;
+        sprintKind = state.sprintKind === 'stops' ? 'stops' : 'minutes';
+        sprintStopGoal = state.sprintStopGoal || 0;
+        sprintUntilEnd = !!state.sprintUntilEnd;
         pausedForSprintPicker = !!state.pausedForSprintPicker;
         pendingSprintResults = state.pendingSprintResults || null;
         if (pendingSprintResults) {
@@ -375,6 +385,7 @@ function showDurationDialog({ title, text, chips, applyLabel, closeOnEmpty, onAp
 function showAddTimeDialog() {
     if (hasStarted) return;
     overlayMode = 'addTime';
+    if (sprintModeToggle) sprintModeToggle.classList.add('hidden');
     showDurationDialog({
         title: 'Add Time',
         text: 'Add time you already worked before starting the timer.',
@@ -388,8 +399,16 @@ function showAddTimeDialog() {
     });
 }
 
+function getRouteRemaining() {
+    const target = getTarget();
+    if (target <= 0) return null;
+    return Math.max(0, target - deliveries.length);
+}
+
 function isSprintActive() {
-    return sprintStartTimestamp !== null && sprintDurationMs > 0;
+    if (!sprintStartTimestamp) return false;
+    if (sprintKind === 'stops') return sprintUntilEnd || sprintStopGoal > 0;
+    return sprintDurationMs > 0;
 }
 
 function getSprintElapsedMs(now = Date.now()) {
@@ -407,8 +426,43 @@ function getSprintRemainingMs(now = Date.now()) {
 }
 
 function getSprintStopCount() {
-    if (!isSprintActive()) return 0;
-    return deliveries.slice(sprintStartDeliveryCount).filter(d => !isSkipped(d)).length;
+    if (!sprintStartTimestamp) return 0;
+    return deliveries.slice(Math.min(sprintStartDeliveryCount, deliveries.length)).filter(d => !isSkipped(d)).length;
+}
+
+function getSprintLoggedCount() {
+    if (!sprintStartTimestamp) return 0;
+    return Math.max(0, deliveries.length - sprintStartDeliveryCount);
+}
+
+function getEffectiveSprintStopGoal() {
+    const logged = getSprintLoggedCount();
+    const routeLeft = getRouteRemaining();
+
+    if (sprintUntilEnd) {
+        const target = getTarget();
+        if (target <= 0) return logged;
+        return Math.max(0, target - sprintStartDeliveryCount);
+    }
+
+    let goal = sprintStopGoal;
+    if (routeLeft !== null) {
+        goal = Math.min(goal, logged + routeLeft);
+    }
+    return Math.max(0, goal);
+}
+
+function getSprintStopsLeft() {
+    return Math.max(0, getEffectiveSprintStopGoal() - getSprintLoggedCount());
+}
+
+function checkSprintComplete() {
+    if (!isSprintActive()) return;
+    if (sprintKind === 'stops') {
+        if (getSprintStopsLeft() <= 0) completeSprint(false);
+        return;
+    }
+    if (getSprintRemainingMs() <= 0) completeSprint(false);
 }
 
 function clearSprintState() {
@@ -416,6 +470,9 @@ function clearSprintState() {
     sprintStartTimestamp = null;
     sprintPausedMs = 0;
     sprintStartDeliveryCount = 0;
+    sprintKind = 'minutes';
+    sprintStopGoal = 0;
+    sprintUntilEnd = false;
 }
 
 function applyPauseDuration(now, { includeDelivery = true } = {}) {
@@ -462,48 +519,201 @@ function updateSprintDisplay() {
         updateSprintButton();
         return;
     }
-    const remainingSecs = Math.ceil(getSprintRemainingMs() / 1000);
-    sprintTimeEl.textContent = formatTime(remainingSecs);
+    if (sprintKind === 'stops') {
+        const left = getSprintStopsLeft();
+        sprintTimeEl.textContent = left === 1 ? '1 left' : `${left} left`;
+    } else {
+        const remainingSecs = Math.ceil(getSprintRemainingMs() / 1000);
+        sprintTimeEl.textContent = formatTime(remainingSecs);
+    }
     sprintTimeEl.classList.toggle('paused', !isRunning);
     sprintSection.classList.remove('hidden');
     updateSprintButton();
+}
+
+function setSprintPickerMode(mode) {
+    if (!sprintModeToggle) return;
+    sprintModeToggle.querySelectorAll('.sprint-mode-btn').forEach(btn => {
+        const on = btn.dataset.sprintMode === mode;
+        btn.classList.toggle('on', on);
+        btn.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+}
+
+function renderSprintPicker(mode) {
+    setSprintPickerMode(mode);
+    confirmTitle.textContent = 'Sprint';
+    summaryStats.style.display = 'none';
+    summaryStats.innerHTML = '';
+    confirmClose.classList.remove('hidden');
+    if (sprintModeToggle) sprintModeToggle.classList.remove('hidden');
+
+    if (mode === 'stops') {
+        const remaining = getRouteRemaining();
+        const canUseRemaining = remaining !== null && remaining > 0;
+        confirmText.textContent = canUseRemaining
+            ? `Sprint for a set number of stops, up to ${remaining} remaining. The session timer keeps running.`
+            : 'Sprint for a set number of stops. Set Stops to cap this at how many you have left, or use Till the end.';
+        confirmButtons.innerHTML = `
+            <div style="width:100%">
+                <div class="add-time-chips">
+                    <button type="button" class="add-time-chip" data-stops="1">+1</button>
+                    <button type="button" class="add-time-chip" data-stops="5">+5</button>
+                    <button type="button" class="add-time-chip" data-until-end="true"${canUseRemaining ? '' : ' disabled'}>Till end</button>
+                </div>
+                <div class="add-time-custom">
+                    <input type="number" class="add-time-input" id="sprintStopsInput" min="1" max="999" step="1" inputmode="numeric" pattern="[0-9]*" placeholder="stops">
+                </div>
+                <button type="button" class="confirm-btn confirm-done" id="durationApplyBtn" style="width:100%">Start</button>
+            </div>
+        `;
+        const customInput = document.getElementById('sprintStopsInput');
+        const applyBtn = document.getElementById('durationApplyBtn');
+        let untilEnd = false;
+
+        const clampInput = () => {
+            const routeLeft = getRouteRemaining();
+            let value = parseInt(customInput.value, 10);
+            if (!Number.isFinite(value) || value <= 0) {
+                customInput.value = '';
+                return 0;
+            }
+            if (routeLeft !== null && value > routeLeft) {
+                value = routeLeft;
+                customInput.value = value ? String(value) : '';
+            }
+            if (value > 999) {
+                value = 999;
+                customInput.value = '999';
+            }
+            return value;
+        };
+
+        confirmButtons.querySelectorAll('.add-time-chip').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (btn.disabled) return;
+                if (btn.dataset.untilEnd) {
+                    const routeLeft = getRouteRemaining();
+                    if (routeLeft === null || routeLeft <= 0) return;
+                    customInput.value = String(routeLeft);
+                    untilEnd = true;
+                    return;
+                }
+                untilEnd = false;
+                const current = parseInt(customInput.value, 10) || 0;
+                const routeLeft = getRouteRemaining();
+                const cap = routeLeft === null ? 999 : routeLeft;
+                customInput.value = String(Math.min(cap, current + Number(btn.dataset.stops)));
+            });
+        });
+
+        customInput.addEventListener('input', () => {
+            untilEnd = false;
+            clampInput();
+        });
+
+        const applyStops = () => {
+            const count = clampInput();
+            const routeLeft = getRouteRemaining();
+            if (untilEnd && routeLeft !== null && routeLeft > 0) {
+                startStopSprint(routeLeft, true);
+                return;
+            }
+            if (count > 0 && (routeLeft === null || count <= routeLeft)) {
+                startStopSprint(count, false);
+            }
+        };
+        applyBtn.addEventListener('click', applyStops);
+        customInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                applyStops();
+            }
+        });
+        return;
+    }
+
+    confirmText.textContent = 'Count how many stops you log in this window. The session timer keeps running.';
+    confirmButtons.innerHTML = `
+        <div style="width:100%">
+            <div class="add-time-chips">
+                <button type="button" class="add-time-chip" data-mins="15">+15 min</button>
+                <button type="button" class="add-time-chip" data-mins="30">+30 min</button>
+                <button type="button" class="add-time-chip" data-mins="60">+60 min</button>
+            </div>
+            <div class="add-time-custom">
+                <input type="number" class="add-time-input" id="durationCustomInput" min="1" max="999" step="1" inputmode="numeric" pattern="[0-9]*" placeholder="min">
+            </div>
+            <button type="button" class="confirm-btn confirm-done" id="durationApplyBtn" style="width:100%">Start</button>
+        </div>
+    `;
+    const customInput = document.getElementById('durationCustomInput');
+    const applyBtn = document.getElementById('durationApplyBtn');
+    confirmButtons.querySelectorAll('.add-time-chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const current = parseInt(customInput.value, 10) || 0;
+            customInput.value = String(Math.min(999, current + Number(btn.dataset.mins)));
+        });
+    });
+    const applyMinutes = () => {
+        const mins = parseInt(customInput.value, 10);
+        if (mins && mins > 0) startMinuteSprint(mins * 60 * 1000);
+    };
+    applyBtn.addEventListener('click', applyMinutes);
+    customInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            applyMinutes();
+        }
+    });
 }
 
 function showSprintDialog() {
     if (!hasStarted || isSprintActive()) return;
     overlayMode = 'sprintPicker';
     pauseForSprintPicker();
-    showDurationDialog({
-        title: 'Sprint',
-        text: 'Count how many stops you log in this window. The session timer keeps running.',
-        chips: [15, 30, 60],
-        applyLabel: 'Start',
-        closeOnEmpty: false,
-        onApply: (mins) => startSprint(mins * 60 * 1000)
-    });
+    confirmOverlay.classList.add('visible');
+    renderSprintPicker('minutes');
 }
 
-function startSprint(durationMs) {
-    if (!hasStarted || durationMs <= 0) return;
+function beginSprint() {
     overlayMode = null;
+    if (sprintModeToggle) sprintModeToggle.classList.add('hidden');
     confirmClose.classList.add('hidden');
     confirmOverlay.classList.remove('visible');
     resumeAfterSprintPicker();
-
-    sprintDurationMs = durationMs;
     sprintStartTimestamp = Date.now();
     sprintPausedMs = 0;
     sprintStartDeliveryCount = deliveries.length;
-
     updateSprintDisplay();
     saveTimerState();
     haptic(10);
 }
 
+function startMinuteSprint(durationMs) {
+    if (!hasStarted || durationMs <= 0) return;
+    sprintKind = 'minutes';
+    sprintDurationMs = durationMs;
+    sprintStopGoal = 0;
+    sprintUntilEnd = false;
+    beginSprint();
+}
+
+function startStopSprint(stopGoal, untilEnd) {
+    if (!hasStarted || stopGoal <= 0) return;
+    const routeLeft = getRouteRemaining();
+    if (routeLeft !== null && stopGoal > routeLeft) return;
+    sprintKind = 'stops';
+    sprintDurationMs = 0;
+    sprintStopGoal = stopGoal;
+    sprintUntilEnd = !!untilEnd;
+    beginSprint();
+}
+
 function completeSprint(endedEarly) {
     if (!isSprintActive()) return;
 
-    const elapsedMs = endedEarly
+    const elapsedMs = (endedEarly || sprintKind === 'stops')
         ? getSprintElapsedMs()
         : sprintDurationMs;
     const stops = getSprintStopCount();
@@ -527,6 +737,7 @@ function completeSprint(endedEarly) {
 
 function showSprintResults(stops, elapsedSeconds, endedEarly) {
     overlayMode = 'sprintResults';
+    if (sprintModeToggle) sprintModeToggle.classList.add('hidden');
     confirmTitle.textContent = endedEarly ? 'Sprint ended' : 'Sprint complete';
     confirmText.textContent = 'Session timer is still running.';
     confirmClose.classList.remove('hidden');
@@ -550,7 +761,7 @@ function showEndSprintConfirm() {
     if (!isSprintActive()) return;
     overlayMode = 'endSprint';
     confirmTitle.textContent = 'End sprint?';
-    confirmText.textContent = 'This will stop the countdown and show your results. The session timer keeps running.';
+    confirmText.textContent = 'This will stop the sprint and show your results. The session timer keeps running.';
     summaryStats.style.display = 'none';
     summaryStats.innerHTML = '';
     confirmClose.classList.add('hidden');
@@ -1054,9 +1265,7 @@ function startTicker() {
 
 function tick() {
     calculateElapsedTimes();
-    if (isSprintActive() && getSprintRemainingMs() <= 0) {
-        completeSprint(false);
-    }
+    checkSprintComplete();
     updateDisplay();
 
     if (totalSeconds !== lastSavedTotalSeconds && totalSeconds % 5 === 0) {
@@ -1192,6 +1401,7 @@ function recordDelivery(skipped = false) {
     updateDisplay();
     updateHistory();
     startTicker();
+    checkSprintComplete();
 
     haptic(skipped ? 500 : 30);
 }
@@ -1223,6 +1433,7 @@ function undoLast() {
 // Show reset confirmation dialog
 function showResetConfirm() {
     overlayMode = 'reset';
+    if (sprintModeToggle) sprintModeToggle.classList.add('hidden');
     confirmTitle.textContent = 'Reset All Data?';
     confirmText.textContent = 'This will clear all deliveries and times. This cannot be undone.';
     summaryStats.style.display = 'none';
@@ -1244,6 +1455,7 @@ function hideResetConfirm() {
     const wasSprintResults = overlayMode === 'sprintResults';
     overlayMode = null;
     confirmClose.classList.add('hidden');
+    if (sprintModeToggle) sprintModeToggle.classList.add('hidden');
     confirmOverlay.classList.remove('visible');
     summaryStats.style.display = 'none';
     summaryStats.innerHTML = '';
@@ -1490,6 +1702,13 @@ resetBtn.addEventListener('click', showResetConfirm);
 undoBtn.addEventListener('click', undoLast);
 addTimeBtn.addEventListener('click', showAddTimeDialog);
 if (sprintBtn) sprintBtn.addEventListener('click', onSprintBtnClick);
+if (sprintModeToggle) {
+    sprintModeToggle.addEventListener('click', (e) => {
+        const btn = e.target.closest('.sprint-mode-btn');
+        if (!btn || overlayMode !== 'sprintPicker') return;
+        renderSprintPicker(btn.dataset.sprintMode);
+    });
+}
 if (sprintSection) {
     sprintSection.addEventListener('click', () => {
         if (isSprintActive()) completeSprint(true);
@@ -1548,6 +1767,7 @@ targetInput.addEventListener('input', function() {
         targetInput.value = digits;
     }
     updateDisplay();
+    checkSprintComplete();
 });
 finishTimeInput.addEventListener('input', updateDisplay);
 themeToggle.addEventListener('click', toggleTheme);
@@ -1690,9 +1910,7 @@ document.addEventListener('visibilitychange', function() {
         applyKeepScreenOn();
         if (hasStarted) {
             calculateElapsedTimes();
-            if (isSprintActive() && getSprintRemainingMs() <= 0) {
-                completeSprint(false);
-            }
+            checkSprintComplete();
             updateDisplay();
             updateHistory();
             startTicker();
@@ -1704,9 +1922,7 @@ document.addEventListener('visibilitychange', function() {
 window.addEventListener('focus', function() {
     if (hasStarted) {
         calculateElapsedTimes();
-        if (isSprintActive() && getSprintRemainingMs() <= 0) {
-            completeSprint(false);
-        }
+        checkSprintComplete();
         updateDisplay();
         startTicker();
     }
@@ -1822,8 +2038,8 @@ function initializeFromSavedState() {
                 pendingSprintResults.elapsedSeconds,
                 pendingSprintResults.endedEarly
             );
-        } else if (isSprintActive() && getSprintRemainingMs() <= 0) {
-            completeSprint(false);
+        } else {
+            checkSprintComplete();
         }
         
         return true;

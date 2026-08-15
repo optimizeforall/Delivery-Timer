@@ -20,6 +20,10 @@
     <div class="confirm-overlay" id="confirmOverlay">
         <div class="confirm-box">
             <button type="button" class="settings-close confirm-close hidden" id="confirmClose" aria-label="Close">×</button>
+            <div class="sprint-mode-toggle hidden" id="sprintModeToggle" role="tablist" aria-label="Sprint type">
+                <button type="button" class="sprint-mode-btn on" data-sprint-mode="minutes" role="tab" aria-selected="true">Minutes</button>
+                <button type="button" class="sprint-mode-btn" data-sprint-mode="stops" role="tab" aria-selected="false">Stops</button>
+            </div>
             <div class="confirm-title" id="confirmTitle">Reset All Data?</div>
             <div class="confirm-text" id="confirmText">This will clear all deliveries and times. This cannot be undone.</div>
             <div class="summary-stats" id="summaryStats" style="display: none;"></div>
@@ -148,7 +152,7 @@
                     <li><strong>UNDO</strong> — remove the last logged stop</li>
                     <li><strong>RESET</strong> — clear the whole session</li>
                     <li><strong>+ TIME</strong> — add minutes you already worked before starting</li>
-                    <li><strong>Sprint</strong> — the runner icon in the header starts a countdown window to see how many stops you log in that time (tap the countdown, or tap the runner again and confirm, to finish early)</li>
+                    <li><strong>Sprint</strong> — the runner icon in the header starts a mini-session. Choose <strong>Minutes</strong> to count stops in a timed window, or <strong>Stops</strong> for +1 / +5 / Till the end (capped at remaining stops). Tap the countdown, or tap the runner again and confirm, to finish early</li>
                     <li><strong>+ / −</strong> — split the next DELIVERED tap across multiple stops</li>
                 </ul>
                 <div class="settings-help-heading">Pace and stats</div>
@@ -204,6 +208,10 @@
                 <input type="text" class="target-input" id="targetInput" value="" placeholder="0" maxlength="3" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done">
                 <span class="remaining-text" id="remainingLabel"></span>
             </div>
+            <div class="sprint-section hidden" id="sprintSection" role="button" tabindex="0" aria-label="End sprint">
+                <div class="sprint-label">Sprint</div>
+                <div class="sprint-time" id="sprintTime">0:00</div>
+            </div>
             <div class="target-group">
                 <span class="target-label">Finish by:</span>
                 <input type="time" class="time-input" id="finishTimeInput" value="15:30">
@@ -243,10 +251,6 @@
         <div class="total-section">
             <div class="total-label">Total Time</div>
             <div class="total-time" id="totalTime">0:00:00</div>
-        </div>
-        <div class="sprint-section hidden" id="sprintSection" role="button" tabindex="0" aria-label="End sprint">
-            <div class="sprint-label">Sprint</div>
-            <div class="sprint-time" id="sprintTime">0:00</div>
         </div>
     </div>
 
