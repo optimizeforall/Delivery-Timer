@@ -1844,7 +1844,13 @@ if (!initializeFromSavedState()) {
 }
 
 if ('serviceWorker' in navigator && window.location.protocol !== 'file:') {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
+    navigator.serviceWorker.register('./sw.js').then((reg) => {
+        const checkForUpdate = () => reg.update().catch(() => {});
+        checkForUpdate();
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') checkForUpdate();
+        });
+    }).catch(() => {});
 }
 
 window.addEventListener('pointerdown', () => {
