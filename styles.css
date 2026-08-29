@@ -69,55 +69,77 @@ body.light {
 }
 
 body.slate {
-    --accent: #e4e4e7;
-    --accent-soft: #fafafa;
-    --good: #86efac;
-    --good-strong: #bbf7d0;
-    --warn: #d4d4d8;
-    --bad: #f87171;
-    --info: #a1a1aa;
-    color: #f4f4f5;
-    background: #09090b;
+    --accent: #8fb4c8;
+    --accent-soft: #c5d9e4;
+    --good: #7dcea0;
+    --good-strong: #a8e6c3;
+    --warn: #e0b56a;
+    --bad: #ee8b8b;
+    --info: #8eb8e8;
+    color: #e8eef4;
+    background: #141820;
 }
 
 .slate .app {
-    background: #09090b;
+    background: linear-gradient(165deg, #161c24 0%, #1a2430 48%, #1c2a38 100%);
 }
 
-.slate .header,
-.slate .stats-bar,
+.slate .header {
+    background: rgba(255,255,255,0.035);
+    border-bottom-color: rgba(143,180,200,0.12);
+}
+
+.slate .stats-bar {
+    background: rgba(8, 14, 22, 0.38);
+}
+
 .slate .target-section,
 .slate .controls {
-    background: #09090b;
-    border-color: rgba(255,255,255,0.06);
+    background: rgba(255,255,255,0.02);
+    border-color: rgba(143,180,200,0.1);
 }
 
-.slate .current-time {
-    text-shadow: none;
+body.slate .current-time {
+    text-shadow: 0 0 42px rgba(143, 180, 200, 0.22);
+}
+
+.slate .icon-toggle.sprint-active {
+    border-color: rgba(143, 180, 200, 0.4);
+    background: rgba(143, 180, 200, 0.12);
 }
 
 .slate .btn-delivered {
-    background: #fafafa;
-    color: #09090b;
-    box-shadow: none;
+    background: linear-gradient(135deg, #8fb4c8 0%, #c5d9e4 100%);
+    color: #12202a;
+    box-shadow: 0 8px 28px rgba(143, 180, 200, 0.28);
+}
+
+.slate .btn-delivered:active {
+    background: linear-gradient(135deg, #7ea3b7 0%, #b3c8d4 100%);
+    box-shadow: 0 4px 14px rgba(143, 180, 200, 0.22);
 }
 
 .slate .btn-start {
-    background: #e4e4e7;
-    color: #09090b;
-    box-shadow: none;
+    background: linear-gradient(135deg, #6fbf93 0%, #4ea97a 100%);
+    color: #0c1a12;
+    box-shadow: 0 8px 28px rgba(78, 169, 122, 0.28);
 }
 
 .slate .btn-start:active {
-    background: #d4d4d8;
-    box-shadow: none;
+    background: linear-gradient(135deg, #62b287 0%, #44986d 100%);
+    box-shadow: 0 4px 14px rgba(78, 169, 122, 0.22);
 }
 
 .slate .pace-row,
 .slate .settings-card,
 .slate .settings-help {
-    background: rgba(255,255,255,0.03);
-    border-color: rgba(255,255,255,0.06);
+    background: rgba(255,255,255,0.045);
+    border-color: rgba(143,180,200,0.1);
+}
+
+.slate .settings-panel,
+.slate .confirm-box {
+    background: #1c2632;
 }
 
 .header {
@@ -1497,6 +1519,11 @@ body.slate {
     padding: 12px 14px;
 }
 
+.settings-row-toggle {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
 .settings-label {
     font-size: 15px;
     font-weight: 600;
@@ -1954,7 +1981,7 @@ body.slate {
     }
 
     body.slate {
-        background: #050506;
+        background: #0c1016;
     }
 
     .app {

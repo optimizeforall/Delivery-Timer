@@ -79,10 +79,10 @@ const DEFAULT_SKIP_HOLD_MS = 850;
 const MIN_SKIP_HOLD_MS = 400;
 const MAX_SKIP_HOLD_MS = 2500;
 const SKIP_HOLD_STEP_MS = 50;
-const APP_VERSION = 13;
+const APP_VERSION = 14;
 const SEEN_VERSION_KEY = 'deliveryTimerSeenVersion';
 const WHATS_NEW = [
-    'Decimal mode in Settings shows tenths of a second on the current stop and in Recent Deliveries times.'
+    'Dusk in Settings replaces the old gray Slate theme with a softer blue-gray look.'
 ];
 
 // DOM elements
@@ -1809,7 +1809,7 @@ function applyTheme() {
     );
     const themeColor = document.querySelector('meta[name="theme-color"]');
     if (themeColor) {
-        themeColor.setAttribute('content', slateOn ? '#09090b' : (isLight ? '#fff7ed' : '#121225'));
+        themeColor.setAttribute('content', slateOn ? '#161c24' : (isLight ? '#fff7ed' : '#121225'));
     }
 
     const slateToggle = $('slateToggle');
@@ -2040,6 +2040,13 @@ keepScreenToggle.addEventListener('click', toggleKeepScreenOn);
 hapticsToggle.addEventListener('click', toggleHaptics);
 if (decimalToggle) decimalToggle.addEventListener('click', toggleDecimalMode);
 minimalToggle.addEventListener('click', toggleMinimalMode);
+document.querySelectorAll('.settings-row-toggle').forEach((row) => {
+    row.addEventListener('click', (e) => {
+        if (e.target.closest('.settings-switch')) return;
+        const sw = row.querySelector('.settings-switch');
+        if (sw) sw.click();
+    });
+});
 defaultFinishInput.addEventListener('change', () => setDefaultFinishTime(defaultFinishInput.value));
 skipHoldMinus.addEventListener('click', () => setSkipHoldMs(skipHoldMs - SKIP_HOLD_STEP_MS));
 skipHoldPlus.addEventListener('click', () => setSkipHoldMs(skipHoldMs + SKIP_HOLD_STEP_MS));
