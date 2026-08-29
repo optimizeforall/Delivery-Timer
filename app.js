@@ -35,6 +35,7 @@ let skipHoldEnabled = true;
 let skipHoldMs = 850;
 let keepScreenOn = true;
 let hapticsEnabled = true;
+let decimalMode = false;
 let defaultFinishTime = '15:30';
 
 // Timestamp-based tracking for persistence across tab close/phone sleep
@@ -68,6 +69,7 @@ const SKIP_HOLD_KEY = 'deliveryTimerSkipHold';
 const SKIP_HOLD_MS_KEY = 'deliveryTimerSkipHoldMs';
 const KEEP_SCREEN_KEY = 'deliveryTimerKeepScreenOn';
 const HAPTICS_KEY = 'deliveryTimerHaptics';
+const DECIMAL_MODE_KEY = 'deliveryTimerDecimalMode';
 const DEFAULT_FINISH_KEY = 'deliveryTimerDefaultFinish';
 const DEFAULT_FINISH_TIME = '15:30';
 const DEFAULT_RECENT_WINDOW = 7;
@@ -77,14 +79,10 @@ const DEFAULT_SKIP_HOLD_MS = 850;
 const MIN_SKIP_HOLD_MS = 400;
 const MAX_SKIP_HOLD_MS = 2500;
 const SKIP_HOLD_STEP_MS = 50;
-const APP_VERSION = 12;
+const APP_VERSION = 13;
 const SEEN_VERSION_KEY = 'deliveryTimerSeenVersion';
 const WHATS_NEW = [
-    'Hold + or − to snap to the next 5 (1→5, 7→10). Same hold time as skip.',
-    'Tap and hold on + / − now have their own tick sounds.',
-    'Simple layout keeps only PAUSE in the header.',
-    'Need shows PAST when Finish by has already gone by.',
-    'Finish by stacks above the time box when a sprint makes the row tight.'
+    'Decimal mode in Settings shows tenths of a second on the current stop and in Recent Deliveries times.'
 ];
 
 // DOM elements
@@ -147,6 +145,7 @@ const keepScreenToggle = $('keepScreenToggle');
 const defaultFinishInput = $('defaultFinishInput');
 const minimalToggle = $('minimalToggle');
 const hapticsToggle = $('hapticsToggle');
+const decimalToggle = $('decimalToggle');
 const recentWindowInput = $('recentWindowInput');
 const recentWindowMinus = $('recentWindowMinus');
 const recentWindowPlus = $('recentWindowPlus');
@@ -326,7 +325,7 @@ function calculateElapsedTimes() {
             deliveryElapsedMs -= (now - pauseStartTimestamp);
         }
         
-        currentSeconds = Math.max(0, Math.floor(deliveryElapsedMs / 1000));
+        currentSeconds = Math.max(0, deliveryElapsedMs / 1000);
     } else {
         currentSeconds = 0;
     }
@@ -962,13 +961,26 @@ function showSkipFlash() {
 
 // Format seconds to MM:SS or H:MM:SS
 function formatTime(seconds, includeHours = false) {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
+    const total = Math.max(0, Math.floor(Number(seconds) || 0));
+    const hrs = Math.floor(total / 3600);
+    const mins = Math.floor((total % 3600) / 60);
+    const secs = total % 60;
     if (includeHours || hrs > 0) {
         return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function formatStopTime(seconds) {
+    if (!decimalMode) return formatTime(seconds);
+    const safe = Math.max(0, Number(seconds) || 0);
+    const hrs = Math.floor(safe / 3600);
+    const mins = Math.floor((safe % 3600) / 60);
+    const secs = (safe % 60).toFixed(1).padStart(4, '0');
+    if (hrs > 0) {
+        return `${hrs}:${mins.toString().padStart(2, '0')}:${secs}`;
+    }
+    return `${mins}:${secs}`;
 }
 
 // Format stops/hr as either "20.0/hr" or "3:00/stp"
@@ -1235,10 +1247,24 @@ function bindSplitHold(btn, direction) {
     });
 }
 
+function loggedStopSeconds(seconds) {
+    const safe = Math.max(0, Number(seconds) || 0);
+    if (decimalMode) return Math.round(safe * 10) / 10;
+    return Math.floor(safe);
+}
+
 function splitDeliveryTimes(totalSeconds, count) {
-    const safeCount = Math.max(MIN_SPLIT_COUNT, Math.min(count, Math.max(totalSeconds, MIN_SPLIT_COUNT)));
-    const base = Math.floor(totalSeconds / safeCount);
-    const remainder = totalSeconds % safeCount;
+    const logged = loggedStopSeconds(totalSeconds);
+    const safeCount = Math.max(MIN_SPLIT_COUNT, Math.min(count, Math.max(Math.floor(logged) || MIN_SPLIT_COUNT, MIN_SPLIT_COUNT)));
+    if (decimalMode) {
+        const base = Math.round((logged / safeCount) * 10) / 10;
+        const times = Array(safeCount).fill(base);
+        const drift = Math.round((logged - base * safeCount) * 10) / 10;
+        times[times.length - 1] = Math.round((times[times.length - 1] + drift) * 10) / 10;
+        return times;
+    }
+    const base = Math.floor(logged / safeCount);
+    const remainder = logged % safeCount;
     const times = [];
     for (let i = 0; i < safeCount; i++) {
         times.push(base + (i < remainder ? 1 : 0));
@@ -1386,7 +1412,7 @@ function updateProgress() {
 
 // Main display update function
 function updateDisplay() {
-    currentTimeEl.textContent = formatTime(currentSeconds);
+    currentTimeEl.textContent = formatStopTime(currentSeconds);
     totalTimeEl.textContent = formatTime(totalSeconds, true);
     deliveryNumEl.textContent = `#${deliveries.length + 1}`;
     currentTimeEl.classList.remove('time-fast', 'time-mid', 'time-slow');
@@ -1437,7 +1463,7 @@ function updateHistory() {
 
         return `<div class="history-item${skipped ? ' skipped' : ''}">
             <span class="num">#${num}</span>
-            <span class="time ${timeClass}">${formatTime(time)}</span>
+            <span class="time ${timeClass}">${formatStopTime(time)}</span>
             <span class="rate${skipped ? '' : ' rate-toggle'}">${skipped ? 'SKIP' : formatRate(singleRate)}</span>
         </div>`;
     }).join('');
@@ -1467,12 +1493,13 @@ function msUntilNextWholeSecond() {
 
 function startTicker() {
     stopTicker();
+    const nextDelay = () => decimalMode ? 100 : msUntilNextWholeSecond();
     const fire = () => {
         tick();
         if (!hasStarted) return;
-        intervalId = setTimeout(fire, msUntilNextWholeSecond());
+        intervalId = setTimeout(fire, nextDelay());
     };
-    intervalId = setTimeout(fire, msUntilNextWholeSecond());
+    intervalId = setTimeout(fire, nextDelay());
 }
 
 function tick() {
@@ -1558,7 +1585,7 @@ function recordDelivery(skipped = false) {
     // Calculate current time first
     calculateElapsedTimes();
     
-    if (currentSeconds === 0) return;
+    if (currentSeconds < 1) return;
 
     const splitTimes = splitDeliveryTimes(currentSeconds, splitCount);
     const countedBefore = countedDeliveries().length;
@@ -1850,6 +1877,21 @@ function toggleHaptics() {
     if (hapticsEnabled) haptic(20);
 }
 
+function applyDecimalToggle() {
+    if (!decimalToggle) return;
+    decimalToggle.classList.toggle('on', decimalMode);
+    decimalToggle.setAttribute('aria-checked', decimalMode ? 'true' : 'false');
+}
+
+function toggleDecimalMode() {
+    decimalMode = !decimalMode;
+    applyDecimalToggle();
+    persistPref(DECIMAL_MODE_KEY, decimalMode.toString());
+    if (hasStarted) startTicker();
+    updateDisplay();
+    updateHistory();
+}
+
 function toggleKeepScreenOn() {
     keepScreenOn = !keepScreenOn;
     persistPref(KEEP_SCREEN_KEY, keepScreenOn.toString());
@@ -1996,6 +2038,7 @@ historyToggle.addEventListener('click', toggleShowHistory);
 skipHoldToggle.addEventListener('click', toggleSkipHold);
 keepScreenToggle.addEventListener('click', toggleKeepScreenOn);
 hapticsToggle.addEventListener('click', toggleHaptics);
+if (decimalToggle) decimalToggle.addEventListener('click', toggleDecimalMode);
 minimalToggle.addEventListener('click', toggleMinimalMode);
 defaultFinishInput.addEventListener('change', () => setDefaultFinishTime(defaultFinishInput.value));
 skipHoldMinus.addEventListener('click', () => setSkipHoldMs(skipHoldMs - SKIP_HOLD_STEP_MS));
@@ -2252,6 +2295,11 @@ if (localStorage.getItem(HAPTICS_KEY) === 'false') {
     hapticsEnabled = false;
 }
 applyHapticsToggle();
+
+if (localStorage.getItem(DECIMAL_MODE_KEY) === 'true') {
+    decimalMode = true;
+}
+applyDecimalToggle();
 
 const savedFinish = localStorage.getItem(DEFAULT_FINISH_KEY);
 if (savedFinish && /^\d{2}:\d{2}$/.test(savedFinish)) {
