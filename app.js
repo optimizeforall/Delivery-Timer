@@ -21,7 +21,8 @@ let deliveries = [];
 let intervalId = null;
 let lastSavedTotalSeconds = -1;
 let bestTime = Infinity;
-let isDark = true;
+let theme = 'dark';
+let slateOn = false;
 let soundEnabled = true;
 let audioContext = null;
 let splitCount = 1;
@@ -57,6 +58,8 @@ let pendingSprintResults = null;
 
 const MIN_SPLIT_COUNT = 1;
 const MAX_SPLIT_COUNT = 99;
+const SPLIT_HOLD_REPEAT_MS = 500;
+const SPLIT_HOLD_STEP = 5;
 const STATE_STORAGE_KEY = 'deliveryTimerState';
 const RATE_UNIT_KEY = 'deliveryTimerRateUnit';
 const SHOW_HISTORY_KEY = 'deliveryTimerShowHistory';
@@ -74,6 +77,15 @@ const DEFAULT_SKIP_HOLD_MS = 850;
 const MIN_SKIP_HOLD_MS = 400;
 const MAX_SKIP_HOLD_MS = 2500;
 const SKIP_HOLD_STEP_MS = 50;
+const APP_VERSION = 12;
+const SEEN_VERSION_KEY = 'deliveryTimerSeenVersion';
+const WHATS_NEW = [
+    'Hold + or − to snap to the next 5 (1→5, 7→10). Same hold time as skip.',
+    'Tap and hold on + / − now have their own tick sounds.',
+    'Simple layout keeps only PAUSE in the header.',
+    'Need shows PAST when Finish by has already gone by.',
+    'Finish by stacks above the time box when a sprint makes the row tight.'
+];
 
 // DOM elements
 const $ = id => document.getElementById(id);
@@ -138,6 +150,7 @@ const hapticsToggle = $('hapticsToggle');
 const recentWindowInput = $('recentWindowInput');
 const recentWindowMinus = $('recentWindowMinus');
 const recentWindowPlus = $('recentWindowPlus');
+const appVersionLabel = $('appVersionLabel');
 
 function persistPref(key, value) {
     try {
@@ -842,6 +855,69 @@ function playDeliverySound() {
     }
 }
 
+function playSplitTick() {
+    if (!soundEnabled) return;
+
+    try {
+        const ctx = initAudio();
+        if (ctx.state === 'suspended') {
+            ctx.resume();
+        }
+
+        const now = ctx.currentTime;
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+
+        oscillator.type = 'triangle';
+        oscillator.frequency.setValueAtTime(1680, now);
+        oscillator.frequency.exponentialRampToValueAtTime(920, now + 0.04);
+
+        gainNode.gain.setValueAtTime(0.035, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
+
+        oscillator.start(now);
+        oscillator.stop(now + 0.045);
+    } catch (e) {
+        // Silently fail if audio doesn't work
+    }
+}
+
+function playSplitHoldTick() {
+    if (!soundEnabled) return;
+
+    try {
+        const ctx = initAudio();
+        if (ctx.state === 'suspended') {
+            ctx.resume();
+        }
+
+        const now = ctx.currentTime;
+        const gainNode = ctx.createGain();
+        gainNode.connect(ctx.destination);
+        gainNode.gain.setValueAtTime(0.05, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+
+        const first = ctx.createOscillator();
+        first.type = 'sine';
+        first.frequency.setValueAtTime(660, now);
+        first.connect(gainNode);
+        first.start(now);
+        first.stop(now + 0.05);
+
+        const second = ctx.createOscillator();
+        second.type = 'sine';
+        second.frequency.setValueAtTime(880, now + 0.045);
+        second.connect(gainNode);
+        second.start(now + 0.045);
+        second.stop(now + 0.12);
+    } catch (e) {
+        // Silently fail if audio doesn't work
+    }
+}
+
 function playSkipSound() {
     if (!soundEnabled) return;
 
@@ -1020,6 +1096,145 @@ function setSplitCount(value) {
     updateSplitControls();
 }
 
+function nextSplitHoldValue(current, direction) {
+    if (direction > 0) {
+        const next = current % SPLIT_HOLD_STEP === 0
+            ? current + SPLIT_HOLD_STEP
+            : Math.ceil(current / SPLIT_HOLD_STEP) * SPLIT_HOLD_STEP;
+        return Math.min(MAX_SPLIT_COUNT, next);
+    }
+    const next = current % SPLIT_HOLD_STEP === 0
+        ? current - SPLIT_HOLD_STEP
+        : Math.floor(current / SPLIT_HOLD_STEP) * SPLIT_HOLD_STEP;
+    return Math.max(MIN_SPLIT_COUNT, next);
+}
+
+function nudgeSplitCount(nextValue, sound) {
+    const before = splitCount;
+    setSplitCount(nextValue);
+    if (splitCount === before) return false;
+    haptic(10);
+    if (sound === 'hold') playSplitHoldTick();
+    else playSplitTick();
+    return true;
+}
+
+function bindSplitHold(btn, direction) {
+    if (!btn) return;
+
+    let pointerDown = false;
+    let holdTimer = null;
+    let repeatTimer = null;
+    let didHold = false;
+    let activePointerId = null;
+    const releaseOpts = { capture: true };
+
+    function unbindRelease() {
+        window.removeEventListener('pointerup', onRelease, releaseOpts);
+        window.removeEventListener('pointercancel', onCancel, releaseOpts);
+        window.removeEventListener('touchend', onRelease, releaseOpts);
+        window.removeEventListener('touchcancel', onCancel, releaseOpts);
+        document.removeEventListener('visibilitychange', onCancel);
+    }
+
+    function bindRelease() {
+        window.addEventListener('pointerup', onRelease, releaseOpts);
+        window.addEventListener('pointercancel', onCancel, releaseOpts);
+        window.addEventListener('touchend', onRelease, releaseOpts);
+        window.addEventListener('touchcancel', onCancel, releaseOpts);
+        document.addEventListener('visibilitychange', onCancel);
+    }
+
+    function isOurPointer(e) {
+        if (activePointerId === null) return false;
+        if (typeof e.pointerId === 'number') return e.pointerId === activePointerId;
+        return true;
+    }
+
+    function clearSplitHold() {
+        if (holdTimer !== null) {
+            clearTimeout(holdTimer);
+            holdTimer = null;
+        }
+        if (repeatTimer !== null) {
+            clearInterval(repeatTimer);
+            repeatTimer = null;
+        }
+        btn.classList.remove('is-holding');
+        unbindRelease();
+        activePointerId = null;
+    }
+
+    function applyHoldStep() {
+        if (!pointerDown) {
+            clearSplitHold();
+            return;
+        }
+        nudgeSplitCount(nextSplitHoldValue(splitCount, direction), 'hold');
+        const atBound = (direction < 0 && splitCount <= MIN_SPLIT_COUNT) ||
+            (direction > 0 && splitCount >= MAX_SPLIT_COUNT);
+        if (atBound) {
+            pointerDown = false;
+            clearSplitHold();
+        }
+    }
+
+    function onRelease(e) {
+        if (!pointerDown) return;
+        if (e && !isOurPointer(e)) return;
+        pointerDown = false;
+        const held = didHold;
+        clearSplitHold();
+        if (!held && !btn.disabled) {
+            nudgeSplitCount(splitCount + direction);
+        }
+    }
+
+    function onCancel(e) {
+        if (!pointerDown) return;
+        if (e && e.type !== 'visibilitychange' && !isOurPointer(e)) return;
+        pointerDown = false;
+        didHold = false;
+        clearSplitHold();
+    }
+
+    btn.addEventListener('pointerdown', function(e) {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        if (btn.disabled) return;
+        if (e.cancelable) e.preventDefault();
+        clearSplitHold();
+        pointerDown = true;
+        didHold = false;
+        activePointerId = e.pointerId;
+        unlockAudio();
+        try {
+            btn.setPointerCapture(e.pointerId);
+        } catch (err) {
+            // Capture is optional
+        }
+        bindRelease();
+        btn.classList.add('is-holding');
+        holdTimer = setTimeout(() => {
+            holdTimer = null;
+            if (!pointerDown) return;
+            didHold = true;
+            applyHoldStep();
+            if (!pointerDown) return;
+            repeatTimer = setInterval(applyHoldStep, SPLIT_HOLD_REPEAT_MS);
+        }, skipHoldMs);
+    });
+
+    btn.addEventListener('lostpointercapture', onRelease);
+
+    btn.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+    });
+
+    btn.addEventListener('click', function(e) {
+        e.preventDefault();
+    });
+}
+
 function splitDeliveryTimes(totalSeconds, count) {
     const safeCount = Math.max(MIN_SPLIT_COUNT, Math.min(count, Math.max(totalSeconds, MIN_SPLIT_COUNT)));
     const base = Math.floor(totalSeconds / safeCount);
@@ -1039,9 +1254,6 @@ function getFinishTime() {
     if (isNaN(hrs) || isNaN(mins)) return null;
     const target = new Date();
     target.setHours(hrs, mins, 0, 0);
-    if (target < new Date()) {
-        target.setDate(target.getDate() + 1);
-    }
     return target;
 }
 
@@ -1138,10 +1350,10 @@ function updatePaceNeeded() {
                 statusBadge.classList.add('behind', 'visible');
             }
         } else {
-            paceNeededEl.textContent = 'LATE';
+            paceNeededEl.textContent = 'PAST';
             paceNeededEl.classList.remove('pace-ahead', 'pace-needed');
             paceNeededEl.classList.add('pace-behind');
-            statusBadge.textContent = 'BEHIND';
+            statusBadge.textContent = 'LATE';
             statusBadge.classList.remove('ahead', 'on-track');
             statusBadge.classList.add('behind', 'visible');
         }
@@ -1453,6 +1665,8 @@ function showResetConfirm() {
 function hideResetConfirm() {
     const wasSprintPicker = overlayMode === 'sprintPicker';
     const wasSprintResults = overlayMode === 'sprintResults';
+    const wasWhatsNew = overlayMode === 'whatsNew';
+    if (wasWhatsNew) persistPref(SEEN_VERSION_KEY, String(APP_VERSION));
     overlayMode = null;
     confirmClose.classList.add('hidden');
     if (sprintModeToggle) sprintModeToggle.classList.add('hidden');
@@ -1465,6 +1679,36 @@ function hideResetConfirm() {
         sprintResultRate = 0;
         saveTimerState();
     }
+    if (!wasWhatsNew) maybeShowWhatsNew();
+}
+
+function hasSeenCurrentVersion() {
+    try {
+        return localStorage.getItem(SEEN_VERSION_KEY) === String(APP_VERSION);
+    } catch (e) {
+        return true;
+    }
+}
+
+function showWhatsNew() {
+    overlayMode = 'whatsNew';
+    if (sprintModeToggle) sprintModeToggle.classList.add('hidden');
+    confirmTitle.textContent = "What's new";
+    confirmText.innerHTML = `<ul class="whats-new-list">${WHATS_NEW.map(item => `<li>${item}</li>`).join('')}</ul>`;
+    summaryStats.style.display = 'none';
+    confirmClose.classList.remove('hidden');
+    confirmButtons.innerHTML = `
+        <button type="button" class="confirm-btn confirm-done" id="whatsNewDoneBtn" style="width:100%">Got it</button>
+    `;
+    confirmOverlay.classList.add('visible');
+    const doneBtn = document.getElementById('whatsNewDoneBtn');
+    if (doneBtn) doneBtn.addEventListener('click', hideResetConfirm);
+}
+
+function maybeShowWhatsNew() {
+    if (hasSeenCurrentVersion()) return;
+    if (overlayMode) return;
+    showWhatsNew();
 }
 
 // Reset all data
@@ -1522,25 +1766,44 @@ function resetAll() {
     updateHistory();
 }
 
-function applyThemeIcons() {
-    themeToggle.textContent = isDark ? '🌙' : '☀️';
+function applyTheme() {
+    document.body.classList.remove('dark', 'light', 'slate', 'volt');
+    if (slateOn) {
+        document.body.classList.add('dark', 'slate');
+    } else {
+        document.body.classList.add(theme === 'light' ? 'light' : 'dark');
+    }
+
+    const isLight = !slateOn && theme === 'light';
+    themeToggle.textContent = isLight ? '☀️' : '🌙';
     themeToggle.setAttribute(
         'aria-label',
-        isDark ? 'Switch to light theme' : 'Switch to dark theme'
+        isLight ? 'Switch to dark theme' : 'Switch to light theme'
     );
     const themeColor = document.querySelector('meta[name="theme-color"]');
     if (themeColor) {
-        themeColor.setAttribute('content', isDark ? '#121225' : '#fff7ed');
+        themeColor.setAttribute('content', slateOn ? '#09090b' : (isLight ? '#fff7ed' : '#121225'));
+    }
+
+    const slateToggle = $('slateToggle');
+    if (slateToggle) {
+        slateToggle.classList.toggle('on', slateOn);
+        slateToggle.setAttribute('aria-checked', slateOn ? 'true' : 'false');
     }
 }
 
-// Toggle dark/light theme
 function toggleTheme() {
-    isDark = !isDark;
-    document.body.classList.toggle('dark', isDark);
-    document.body.classList.toggle('light', !isDark);
-    applyThemeIcons();
-    localStorage.setItem('deliveryTimerTheme', isDark ? 'dark' : 'light');
+    slateOn = false;
+    theme = theme === 'light' ? 'dark' : 'light';
+    persistPref('deliveryTimerTheme', theme);
+    persistPref('deliveryTimerSlate', 'false');
+    applyTheme();
+}
+
+function toggleSlate() {
+    slateOn = !slateOn;
+    persistPref('deliveryTimerSlate', slateOn ? 'true' : 'false');
+    applyTheme();
 }
 
 function applySoundIcons() {
@@ -1618,7 +1881,7 @@ function applySkipHoldDuration() {
     if (skipHoldMinus) skipHoldMinus.disabled = skipHoldMs <= MIN_SKIP_HOLD_MS;
     if (skipHoldPlus) skipHoldPlus.disabled = skipHoldMs >= MAX_SKIP_HOLD_MS;
     if (skipHoldHint) {
-        skipHoldHint.textContent = `Hold DELIVERED for ${formatHoldSeconds(skipHoldMs)}s to log a stuck stop without using its time in Recent, Avg, Best, or Est. Finish.`;
+        skipHoldHint.textContent = `Hold DELIVERED for ${formatHoldSeconds(skipHoldMs)}s to log a stuck stop without using its time in Recent, Avg, Best, or Est. Finish. Hold + / − for the same time to snap to the next 5.`;
     }
 }
 
@@ -1771,9 +2034,11 @@ targetInput.addEventListener('input', function() {
 });
 finishTimeInput.addEventListener('input', updateDisplay);
 themeToggle.addEventListener('click', toggleTheme);
+const slateToggle = $('slateToggle');
+if (slateToggle) slateToggle.addEventListener('click', toggleSlate);
 soundToggle.addEventListener('click', toggleSound);
-splitMinus.addEventListener('click', () => setSplitCount(splitCount - 1));
-splitPlus.addEventListener('click', () => setSplitCount(splitCount + 1));
+bindSplitHold(splitMinus, -1);
+bindSplitHold(splitPlus, 1);
 
 // Tap any rate display to toggle stops/hr â†” min/stp
 bindRateToggle($('rateStat'));
@@ -1940,12 +2205,19 @@ window.addEventListener('pagehide', function() {
 });
 
 // Load saved preferences
-if (localStorage.getItem('deliveryTimerTheme') === 'light') {
-    isDark = false;
-    document.body.classList.remove('dark');
-    document.body.classList.add('light');
+const savedTheme = localStorage.getItem('deliveryTimerTheme');
+if (savedTheme === 'light') {
+    theme = 'light';
+} else if (savedTheme === 'slate') {
+    slateOn = true;
+    theme = 'dark';
+} else {
+    theme = 'dark';
 }
-applyThemeIcons();
+if (localStorage.getItem('deliveryTimerSlate') === 'true') {
+    slateOn = true;
+}
+applyTheme();
 
 if (localStorage.getItem('deliveryTimerSound') === 'false') {
     soundEnabled = false;
@@ -2058,6 +2330,9 @@ if (!initializeFromSavedState()) {
     applyDefaultFinishTime();
     updateDisplay();
 }
+
+if (appVersionLabel) appVersionLabel.textContent = `Version ${APP_VERSION}`;
+maybeShowWhatsNew();
 
 if ('serviceWorker' in navigator && window.location.protocol !== 'file:') {
     navigator.serviceWorker.register('./sw.js').then((reg) => {

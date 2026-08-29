@@ -45,6 +45,21 @@
             </div>
 
             <div class="settings-group">
+                <div class="settings-group-title">Look</div>
+                <div class="settings-card">
+                    <div class="settings-option">
+                        <div class="settings-row">
+                            <span class="settings-label">Slate</span>
+                            <button type="button" class="settings-switch" id="slateToggle" role="switch" aria-checked="false" aria-label="Slate color scheme">
+                                <span class="settings-switch-knob"></span>
+                            </button>
+                        </div>
+                        <p class="settings-hint">Quiet gray theme. The header sun/moon still switches Dark and Light when this is off.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-group">
                 <div class="settings-group-title">Pace</div>
                 <div class="settings-card">
                     <div class="settings-option">
@@ -90,7 +105,7 @@
                                 <button type="button" class="settings-stepper-btn" id="skipHoldPlus" aria-label="Longer hold">+</button>
                             </div>
                         </div>
-                        <p class="settings-hint">Seconds to hold DELIVERED to skip.</p>
+                        <p class="settings-hint">Also used to hold + / − to snap to the next 5.</p>
                     </div>
                 </div>
             </div>
@@ -153,7 +168,7 @@
                     <li><strong>RESET</strong> — clear the whole session</li>
                     <li><strong>+ TIME</strong> — add minutes you already worked before starting</li>
                     <li><strong>Sprint</strong> — the runner icon in the header starts a mini-session. Choose <strong>Minutes</strong> to count stops in a timed window, or <strong>Stops</strong> for +1 / +5 / Till the end (capped at remaining stops). Tap the countdown, or tap the runner again and confirm, to finish early</li>
-                    <li><strong>+ / −</strong> — split the next DELIVERED tap across multiple stops</li>
+                    <li><strong>+ / −</strong> — split the next DELIVERED tap across multiple stops. Hold (same time as skip) to snap to the next 5</li>
                 </ul>
                 <div class="settings-help-heading">Pace and stats</div>
                 <ul>
@@ -168,11 +183,12 @@
                 <p>AHEAD / ON TRACK / BEHIND appears when both Stops and Finish by are set.</p>
                 <div class="settings-help-heading">Other tips</div>
                 <ul>
-                    <li>Tap the <strong>Delivery Tracker</strong> title, or use Settings, to switch into a simpler layout.</li>
-                    <li>Sound and light/dark theme toggles are in the header.</li>
+                    <li>Tap the <strong>Delivery Tracker</strong> title, or use Settings, to switch into a simpler layout. In that layout the header only keeps PAUSE.</li>
+                    <li>Sound and light/dark theme toggles are in the header. Slate is in Settings.</li>
                     <li>The timer keeps running if you close the tab or lock your phone (up to 24 hours).</li>
                 </ul>
             </details>
+            <p class="settings-version" id="appVersionLabel"></p>
         </div>
     </div>
 
@@ -212,7 +228,7 @@
                 <div class="sprint-label">Sprint</div>
                 <div class="sprint-time" id="sprintTime">0:00</div>
             </div>
-            <div class="target-group">
+            <div class="target-group finish-group">
                 <span class="target-label">Finish by:</span>
                 <input type="time" class="time-input" id="finishTimeInput" value="15:30">
             </div>
