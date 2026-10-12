@@ -178,6 +178,7 @@
                     <li><strong>+ TIME</strong> — add minutes you already worked before starting</li>
                     <li><strong>Sprint</strong> — the runner icon in the header starts a mini-session. Choose <strong>Minutes</strong> to count stops in a timed window, or <strong>Stops</strong> for +1 / +5 / Till the end (capped at remaining stops). Tap the countdown, or tap the runner again and confirm, to finish early</li>
                     <li><strong>+ / −</strong> — split the next DELIVERED tap across multiple stops. Hold (same time as skip) to snap to the next 5</li>
+                    <li><strong>Delivery number</strong> — tap or double-tap the number in the center (for example #30), type a higher number, and confirm. Jumping from #30 to #40 logs 10 stops and splits this stop’s time across them, the same as tapping DELIVERED 10 times</li>
                 </ul>
                 <div class="settings-help-heading">Pace and stats</div>
                 <ul>
@@ -273,7 +274,18 @@
         <div class="status-badge" id="statusBadge">ON TRACK</div>
         <div class="current-label">Current Delivery</div>
         <div class="current-time" id="currentTime">0:00</div>
-        <div class="delivery-count">Delivery <span id="deliveryNum">#1</span></div>
+        <div class="delivery-count" id="deliveryCount">
+            <span class="delivery-count-label">Delivery</span>
+            <button type="button" class="delivery-num-btn" id="deliveryNumBtn" aria-label="Jump to a higher delivery number">
+                <span id="deliveryNum">#1</span>
+            </button>
+            <form class="delivery-jump hidden" id="deliveryJumpForm">
+                <span class="delivery-jump-hash" aria-hidden="true">#</span>
+                <input type="text" class="delivery-jump-input" id="deliveryJumpInput" inputmode="numeric" pattern="[0-9]*" maxlength="4" enterkeyhint="done" autocomplete="off" autocapitalize="off" aria-label="Delivery number to jump to">
+                <button type="submit" class="delivery-jump-go" id="deliveryJumpGo">Go</button>
+            </form>
+            <p class="delivery-jump-note hidden" id="deliveryJumpNote"></p>
+        </div>
         <div class="total-section">
             <div class="total-label">Total Time</div>
             <div class="total-time" id="totalTime">0:00:00</div>

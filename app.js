@@ -79,10 +79,11 @@ const DEFAULT_SKIP_HOLD_MS = 850;
 const MIN_SKIP_HOLD_MS = 400;
 const MAX_SKIP_HOLD_MS = 2500;
 const SKIP_HOLD_STEP_MS = 50;
-const APP_VERSION = 14;
+const APP_VERSION = 15;
 const SEEN_VERSION_KEY = 'deliveryTimerSeenVersion';
+const MAX_DELIVERY_NUMBER = 9999;
 const WHATS_NEW = [
-    'Dusk in Settings replaces the old gray Slate theme with a softer blue-gray look.'
+    'Tap the delivery number in the center and type a higher one. Jumping from #30 to #40 logs 10 stops and splits that stop’s time across them.'
 ];
 
 // DOM elements
@@ -90,6 +91,11 @@ const $ = id => document.getElementById(id);
 const currentTimeEl = $('currentTime');
 const totalTimeEl = $('totalTime');
 const deliveryNumEl = $('deliveryNum');
+const deliveryNumBtn = $('deliveryNumBtn');
+const deliveryJumpForm = $('deliveryJumpForm');
+const deliveryJumpInput = $('deliveryJumpInput');
+const deliveryJumpGo = $('deliveryJumpGo');
+const deliveryJumpNote = $('deliveryJumpNote');
 const perHourEl = $('perHour');
 const avgTimeEl = $('avgTime');
 const bestTimeEl = $('bestTime');
@@ -1256,11 +1262,23 @@ function loggedStopSeconds(seconds) {
 function splitDeliveryTimes(totalSeconds, count) {
     const logged = loggedStopSeconds(totalSeconds);
     const safeCount = Math.max(MIN_SPLIT_COUNT, Math.min(count, Math.max(Math.floor(logged) || MIN_SPLIT_COUNT, MIN_SPLIT_COUNT)));
+    return divideLoggedTime(logged, safeCount);
+}
+
+// Same even split as a multi-stop DELIVERED tap, without capping the count at
+// whole seconds, so a typed delivery number is reached exactly.
+function splitDeliveryTimesExact(totalSeconds, count) {
+    const logged = loggedStopSeconds(totalSeconds);
+    const safeCount = Math.max(1, Math.floor(count));
+    return divideLoggedTime(logged, safeCount);
+}
+
+function divideLoggedTime(logged, safeCount) {
     if (decimalMode) {
         const base = Math.round((logged / safeCount) * 10) / 10;
         const times = Array(safeCount).fill(base);
         const drift = Math.round((logged - base * safeCount) * 10) / 10;
-        times[times.length - 1] = Math.round((times[times.length - 1] + drift) * 10) / 10;
+        times[times.length - 1] = Math.max(0, Math.round((times[times.length - 1] + drift) * 10) / 10);
         return times;
     }
     const base = Math.floor(logged / safeCount);
@@ -1415,6 +1433,12 @@ function updateDisplay() {
     currentTimeEl.textContent = formatStopTime(currentSeconds);
     totalTimeEl.textContent = formatTime(totalSeconds, true);
     deliveryNumEl.textContent = `#${deliveries.length + 1}`;
+    if (deliveryNumBtn && !jumpEditorOpen) {
+        deliveryNumBtn.setAttribute(
+            'aria-label',
+            `Delivery ${deliveries.length + 1}. Tap to jump to a higher number`
+        );
+    }
     currentTimeEl.classList.remove('time-fast', 'time-mid', 'time-slow');
     currentTimeEl.classList.add(getTimeClass(currentSeconds));
 
@@ -1587,7 +1611,12 @@ function recordDelivery(skipped = false) {
     
     if (currentSeconds < 1) return;
 
-    const splitTimes = splitDeliveryTimes(currentSeconds, splitCount);
+    commitDeliveries(splitDeliveryTimes(currentSeconds, splitCount), skipped);
+}
+
+function commitDeliveries(splitTimes, skipped) {
+    if (!splitTimes.length) return;
+
     const countedBefore = countedDeliveries().length;
     let hitNewRecord = false;
 
@@ -1603,7 +1632,7 @@ function recordDelivery(skipped = false) {
     }
 
     splitTimes.forEach(time => {
-        if (!skipped) {
+        if (!skipped && time > 0) {
             const isNewRecord = time < bestTime && countedBefore > 0;
             if (time < bestTime) {
                 bestTime = time;
@@ -1645,9 +1674,104 @@ function recordDelivery(skipped = false) {
     haptic(skipped ? 500 : 30);
 }
 
+let jumpEditorOpen = false;
+let jumpApplying = false;
+let jumpNoteTimer = null;
+let jumpOpenedAt = 0;
+
+function currentDeliveryNumber() {
+    return deliveries.length + 1;
+}
+
+function showJumpNote(message, isError) {
+    if (!deliveryJumpNote) return;
+    if (jumpNoteTimer) {
+        clearTimeout(jumpNoteTimer);
+        jumpNoteTimer = null;
+    }
+    deliveryJumpNote.textContent = message;
+    deliveryJumpNote.classList.toggle('is-error', !!isError);
+    deliveryJumpNote.classList.remove('hidden');
+    if (!jumpEditorOpen) {
+        jumpNoteTimer = setTimeout(() => {
+            jumpNoteTimer = null;
+            if (!jumpEditorOpen && deliveryJumpNote) deliveryJumpNote.classList.add('hidden');
+        }, 1800);
+    }
+}
+
+function closeJumpEditor() {
+    jumpEditorOpen = false;
+    if (deliveryJumpForm) deliveryJumpForm.classList.add('hidden');
+    if (deliveryNumBtn) deliveryNumBtn.classList.remove('hidden');
+    if (deliveryJumpNote) deliveryJumpNote.classList.add('hidden');
+    if (jumpNoteTimer) {
+        clearTimeout(jumpNoteTimer);
+        jumpNoteTimer = null;
+    }
+}
+
+function openJumpEditor() {
+    if (jumpEditorOpen || !deliveryJumpForm || !deliveryJumpInput) return;
+    if (!hasStarted) {
+        showJumpNote('Start the timer first', true);
+        return;
+    }
+    jumpEditorOpen = true;
+    jumpOpenedAt = Date.now();
+    if (deliveryNumBtn) deliveryNumBtn.classList.add('hidden');
+    deliveryJumpForm.classList.remove('hidden');
+    deliveryJumpInput.value = '';
+    const current = currentDeliveryNumber();
+    showJumpNote(`Higher than #${current}. This stop's time is split across each one.`, false);
+    deliveryJumpInput.focus();
+    haptic(10);
+}
+
+function jumpToDeliveryNumber(targetNumber) {
+    calculateElapsedTimes();
+    const steps = targetNumber - currentDeliveryNumber();
+    if (!hasStarted || steps < 1 || currentSeconds < 1) return false;
+    commitDeliveries(splitDeliveryTimesExact(currentSeconds, steps), false);
+    return true;
+}
+
+function applyJumpFromInput() {
+    if (!jumpEditorOpen || jumpApplying || !deliveryJumpInput) return;
+    const raw = deliveryJumpInput.value.trim();
+    const current = currentDeliveryNumber();
+    if (!raw) {
+        if (Date.now() - jumpOpenedAt < 400) return;
+        closeJumpEditor();
+        return;
+    }
+    const target = parseInt(raw, 10);
+    if (!Number.isFinite(target) || target <= current) {
+        showJumpNote(`Enter a number above ${current}`, true);
+        deliveryJumpInput.focus();
+        return;
+    }
+    if (target > MAX_DELIVERY_NUMBER) {
+        showJumpNote(`Max is ${MAX_DELIVERY_NUMBER}`, true);
+        deliveryJumpInput.focus();
+        return;
+    }
+    calculateElapsedTimes();
+    if (currentSeconds < 1) {
+        showJumpNote('Wait at least 1 second on this stop', true);
+        deliveryJumpInput.focus();
+        return;
+    }
+    jumpApplying = true;
+    closeJumpEditor();
+    jumpToDeliveryNumber(target);
+    jumpApplying = false;
+}
+
 // Undo last delivery
 function undoLast() {
     if (deliveries.length === 0) return;
+    closeJumpEditor();
 
     const lastDelivery = deliveries.pop();
     const lastDeliveryTime = deliveryTime(lastDelivery);
@@ -1741,6 +1865,7 @@ function maybeShowWhatsNew() {
 // Reset all data
 function resetAll() {
     hideResetConfirm();
+    closeJumpEditor();
     
     stopTicker();
     lastSavedTotalSeconds = -1;
@@ -2165,6 +2290,7 @@ function clearSkipHoldTimer() {
 }
 
 function onDeliveredPointerDown(e) {
+    if (jumpEditorOpen) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     if (e.cancelable) e.preventDefault();
     deliveredPointerDown = true;
@@ -2212,6 +2338,38 @@ deliveredBtn.addEventListener('contextmenu', function(e) {
 deliveredBtn.addEventListener('click', function(e) {
     e.preventDefault();
 });
+
+if (deliveryNumBtn) {
+    deliveryNumBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        openJumpEditor();
+    });
+}
+
+if (deliveryJumpForm) {
+    deliveryJumpForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        applyJumpFromInput();
+    });
+}
+
+if (deliveryJumpInput) {
+    deliveryJumpInput.addEventListener('input', function() {
+        const digits = deliveryJumpInput.value.replace(/\D/g, '').slice(0, 4);
+        if (deliveryJumpInput.value !== digits) deliveryJumpInput.value = digits;
+        if (!jumpEditorOpen) return;
+        const current = currentDeliveryNumber();
+        showJumpNote(`Higher than #${current}. This stop's time is split across each one.`, false);
+    });
+    deliveryJumpInput.addEventListener('blur', function() {
+        setTimeout(function() {
+            if (!jumpEditorOpen || jumpApplying) return;
+            const active = document.activeElement;
+            if (active === deliveryJumpInput || active === deliveryJumpGo) return;
+            closeJumpEditor();
+        }, 250);
+    });
+}
 
 confirmOverlay.addEventListener('click', function(e) {
     if (e.target === confirmOverlay) {
