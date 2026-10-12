@@ -2357,6 +2357,9 @@ if (deliveryJumpInput) {
     deliveryJumpInput.addEventListener('input', function() {
         const digits = deliveryJumpInput.value.replace(/\D/g, '').slice(0, 4);
         if (deliveryJumpInput.value !== digits) deliveryJumpInput.value = digits;
+        if (!jumpEditorOpen) return;
+        const current = currentDeliveryNumber();
+        showJumpNote(`Higher than #${current}. This stop's time is split across each one.`, false);
     });
     deliveryJumpInput.addEventListener('blur', function() {
         setTimeout(function() {
