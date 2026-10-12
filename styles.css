@@ -826,6 +826,13 @@ body.slate .current-time {
     margin-top: 8px;
     font-size: 17px;
     font-weight: 500;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    column-gap: 6px;
+    row-gap: 4px;
+    max-width: 100%;
 }
 
 .dark .delivery-count {
@@ -836,9 +843,113 @@ body.slate .current-time {
     color: rgba(0,0,0,0.55);
 }
 
-.delivery-count span {
+.delivery-num-btn,
+.delivery-jump-hash,
+.delivery-jump-input {
     color: var(--accent);
     font-weight: 700;
+}
+
+.delivery-num-btn {
+    appearance: none;
+    background: none;
+    border: none;
+    margin: 0;
+    padding: 8px 10px;
+    min-width: 44px;
+    min-height: 44px;
+    font: inherit;
+    font-weight: 700;
+    color: var(--accent);
+    cursor: pointer;
+    border-radius: 8px;
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.delivery-num-btn:active {
+    background: rgba(255,107,53,0.16);
+}
+
+.delivery-num-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.delivery-num-btn.hidden,
+.delivery-jump.hidden,
+.delivery-jump-note.hidden {
+    display: none;
+}
+
+.delivery-jump {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+}
+
+.delivery-jump-hash {
+    font: inherit;
+    font-weight: 700;
+}
+
+.delivery-jump-input {
+    width: 4.6ch;
+    min-width: 0;
+    margin: 0;
+    padding: 2px 2px 1px;
+    border: none;
+    border-bottom: 2px solid var(--accent);
+    border-radius: 0;
+    background: transparent;
+    font: inherit;
+    font-size: 16px;
+    font-weight: 700;
+    text-align: left;
+    caret-color: var(--accent);
+}
+
+.delivery-jump-input:focus {
+    outline: none;
+}
+
+.delivery-jump-go {
+    margin-left: 8px;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    padding: 8px 14px;
+    min-width: 44px;
+    min-height: 36px;
+    border-radius: 999px;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.delivery-jump-go:active {
+    transform: scale(0.96);
+    opacity: 0.9;
+}
+
+.delivery-jump-note {
+    flex-basis: 100%;
+    margin: 0;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.35;
+    opacity: 0.75;
+}
+
+.delivery-jump-note.is-error {
+    color: var(--bad);
+    opacity: 1;
 }
 
 .total-section {
@@ -1789,7 +1900,8 @@ body.slate .current-time {
     font-size: 24px;
 }
 
-.hide-history .delivery-count span {
+.hide-history .delivery-num-btn,
+.hide-history .delivery-jump {
     font-size: 1.12em;
 }
 

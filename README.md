@@ -18,6 +18,7 @@ A phone-first timer for tracking delivery stops, pace, and whether you are on tr
 - **RESET** — clear the whole session
 - **+ TIME** — add minutes you already worked before starting
 - **+ / −** — split the next DELIVERED tap across multiple stops
+- **Delivery number** — tap or double-tap the number in the center, type a higher number, and confirm. Jumping from #30 to #40 logs 10 stops and splits the current stop’s time across them, the same as tapping DELIVERED once for each.
 
 ## Pace and stats
 
