@@ -71,6 +71,15 @@
                         </div>
                     </div>
                     <div class="settings-option">
+                        <div class="settings-row settings-row-toggle">
+                            <span class="settings-label">Pace graph</span>
+                            <button type="button" class="settings-switch on" id="paceChartToggle" role="switch" aria-checked="true" aria-label="Show pace graph">
+                                <span class="settings-switch-knob"></span>
+                            </button>
+                        </div>
+                        <p class="settings-hint">In the top bar. Each point is a stop. Higher means a faster stop. The dashed line is your overall rate.</p>
+                    </div>
+                    <div class="settings-option">
                         <div class="settings-row">
                             <span class="settings-label">Recent rate</span>
                             <div class="settings-stepper">
@@ -182,6 +191,7 @@
                 </ul>
                 <div class="settings-help-heading">Pace and stats</div>
                 <ul>
+                    <li><strong>Pace graph</strong> — in the top bar, how fast each stop was through the day. Touch a point to read that stop. Turn it off under Pace in Settings</li>
                     <li><strong>Rate</strong> — overall stops per hour</li>
                     <li><strong>Avg</strong> — average time per stop</li>
                     <li><strong>Best</strong> — fastest stop this session</li>
@@ -217,6 +227,21 @@
             <button type="button" class="icon-toggle" id="themeToggle" aria-label="Switch to light theme">🌙</button>
         </div>
     </div>
+
+    <section class="pace-chart" id="paceChart" hidden aria-label="Pace through the day">
+        <div class="pace-chart-head">
+            <span class="pace-chart-title">Pace</span>
+            <span class="pace-chart-readout" id="paceChartReadout"></span>
+        </div>
+        <div class="pace-chart-stage" id="paceChartStage">
+            <svg id="paceChartSvg" class="pace-chart-svg" role="img" aria-label="Pace through the day. Each point is a stop."></svg>
+            <p class="pace-chart-empty" id="paceChartEmpty">Each stop shows up here</p>
+        </div>
+        <div class="pace-chart-scale">
+            <span id="paceChartStart"></span>
+            <span id="paceChartEnd"></span>
+        </div>
+    </section>
 
     <div class="stats-bar">
         <button class="btn-action btn-undo" id="undoBtn" disabled>UNDO</button>
