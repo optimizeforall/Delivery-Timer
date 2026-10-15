@@ -30,7 +30,7 @@ let isMinimalMode = false;
 let rateUnit = 'perHour'; // 'perHour' | 'perStop'
 let addedTimeMs = 0; // Extra time added for late starts (baked into timestamps once started)
 let showHistory = true;
-let showPaceChart = true;
+let paceChartOpen = false;
 let recentWindow = 7;
 let skipHoldEnabled = true;
 let skipHoldMs = 850;
@@ -65,7 +65,6 @@ const SPLIT_HOLD_STEP = 5;
 const STATE_STORAGE_KEY = 'deliveryTimerState';
 const RATE_UNIT_KEY = 'deliveryTimerRateUnit';
 const SHOW_HISTORY_KEY = 'deliveryTimerShowHistory';
-const SHOW_PACE_CHART_KEY = 'deliveryTimerShowPaceChart';
 const RECENT_WINDOW_KEY = 'deliveryTimerRecentWindow';
 const SKIP_HOLD_KEY = 'deliveryTimerSkipHold';
 const SKIP_HOLD_MS_KEY = 'deliveryTimerSkipHoldMs';
@@ -81,11 +80,11 @@ const DEFAULT_SKIP_HOLD_MS = 850;
 const MIN_SKIP_HOLD_MS = 400;
 const MAX_SKIP_HOLD_MS = 2500;
 const SKIP_HOLD_STEP_MS = 50;
-const APP_VERSION = 17;
+const APP_VERSION = 18;
 const SEEN_VERSION_KEY = 'deliveryTimerSeenVersion';
 const MAX_DELIVERY_NUMBER = 9999;
 const WHATS_NEW = [
-    'The pace chart in the top bar plots time across and stops per hour up. Each point is a stop. Touch one to read it.'
+    'Pace graph opens from Settings onto its own page. Time runs across, stops per hour run up, and each point is a stop. Close it and the timer is unchanged.'
 ];
 
 // DOM elements
@@ -144,13 +143,12 @@ const settingsBtn = $('settingsBtn');
 const settingsOverlay = $('settingsOverlay');
 const settingsClose = $('settingsClose');
 const historyToggle = $('historyToggle');
-const paceChartToggle = $('paceChartToggle');
+const paceChartOpenBtn = $('paceChartOpen');
+const paceChartCloseBtn = $('paceChartClose');
 const paceChartEl = $('paceChart');
 const paceChartStage = $('paceChartStage');
 const paceChartSvg = $('paceChartSvg');
 const paceChartReadout = $('paceChartReadout');
-const paceChartStart = $('paceChartStart');
-const paceChartEnd = $('paceChartEnd');
 const skipHoldToggle = $('skipHoldToggle');
 const skipHoldHint = $('skipHoldHint');
 const skipHoldInput = $('skipHoldInput');
@@ -1487,6 +1485,7 @@ function updateDisplay() {
 let paceChartSignature = '';
 let paceChartLayout = null;
 let paceScrubTimer = null;
+let paceChartMeasureTries = 0;
 
 function paceChartColors() {
     const light = document.body.classList.contains('light') && !document.body.classList.contains('slate');
@@ -1640,19 +1639,20 @@ function setPaceReadout(point) {
 }
 
 function renderPaceChart() {
-    if (!paceChartEl || !paceChartSvg) return;
-    const visible = showPaceChart && (hasStarted || deliveries.length > 0);
-    paceChartEl.hidden = !visible;
-    document.body.classList.toggle('pace-chart-open', visible && !isMinimalMode);
-    if (!visible) {
-        paceChartSignature = 'hidden';
-        paceChartLayout = null;
-        return;
-    }
+    if (!paceChartOpen || !paceChartEl || !paceChartSvg) return;
 
     const width = Math.round(paceChartSvg.clientWidth);
     const height = Math.round(paceChartSvg.clientHeight);
-    if (width < 20 || height < 20) return;
+    if (width < 20 || height < 20) {
+        if (paceChartMeasureTries < 4) {
+            paceChartMeasureTries += 1;
+            requestAnimationFrame(() => {
+                if (paceChartOpen) renderPaceChart();
+            });
+        }
+        return;
+    }
+    paceChartMeasureTries = 0;
 
     const signature = [
         width,
@@ -1675,7 +1675,7 @@ function renderPaceChart() {
     });
     const overall = getOverallRate();
     const yMax = nicePaceMax(paceCeiling(countedRates, overall));
-    const pad = { l: 30, r: 8, t: 8, b: 18 };
+    const pad = { l: 44, r: 16, t: 16, b: 32 };
     const plotW = Math.max(1, width - pad.l - pad.r);
     const plotH = Math.max(1, height - pad.t - pad.b);
     const domain = moments.length ? paceTimeDomain(moments) : paceTimeDomain([Date.now()]);
@@ -1708,7 +1708,7 @@ function renderPaceChart() {
         if (point.x <= lastX) point.x = lastX + 0.6;
         lastX = point.x;
     });
-    const radius = points.length > 40 ? 2.2 : points.length > 16 ? 2.8 : 3.4;
+    const radius = points.length > 40 ? 3.4 : points.length > 16 ? 4.2 : 5;
     const latest = linePoints.length ? linePoints[linePoints.length - 1] : (points.length ? points[points.length - 1] : null);
 
     if (paceChartStage) paceChartStage.classList.toggle('has-data', points.length > 0);
@@ -1719,6 +1719,13 @@ function renderPaceChart() {
             : 'Stops per hour over time. Each point is a stop.';
         paceChartSvg.setAttribute('aria-label', summary);
         paceChartEl.setAttribute('aria-label', summary);
+    }
+
+    if (!points.length) {
+        paceChartSvg.innerHTML = '';
+        paceChartSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+        paceChartLayout = { width, height, points, latest: null, plotTop: pad.t, plotBottom: baseline };
+        return;
     }
 
     const parts = [
@@ -1732,7 +1739,7 @@ function renderPaceChart() {
         const y = yFor(tick);
         const label = Number.isInteger(tick) ? String(tick) : String(Math.round(tick));
         parts.push(`<line x1="${pad.l}" y1="${svgCoord(y)}" x2="${svgCoord(width - pad.r)}" y2="${svgCoord(y)}" stroke="${tick === 0 ? colors.muted : colors.faint}" stroke-width="1"/>`);
-        parts.push(`<text x="${pad.l - 6}" y="${svgCoord(y)}" text-anchor="end" dominant-baseline="middle" fill="${colors.axis}" font-size="10" font-weight="600">${label}</text>`);
+        parts.push(`<text x="${pad.l - 8}" y="${svgCoord(y)}" text-anchor="end" dominant-baseline="middle" fill="${colors.axis}" font-size="12" font-weight="600">${label}</text>`);
     });
 
     if (linePoints.length >= 2) {
@@ -1760,7 +1767,7 @@ function renderPaceChart() {
         ];
     if (points.length) {
         xLabels.forEach(label => {
-            parts.push(`<text x="${svgCoord(label.x)}" y="${svgCoord(height - 3)}" text-anchor="${label.anchor}" fill="${colors.axis}" font-size="10" font-weight="600">${label.text}</text>`);
+            parts.push(`<text x="${svgCoord(label.x)}" y="${svgCoord(height - 8)}" text-anchor="${label.anchor}" fill="${colors.axis}" font-size="12" font-weight="600">${label.text}</text>`);
         });
     }
 
@@ -1836,18 +1843,24 @@ function scrubPaceChart(clientX) {
     showPaceFocus(point);
 }
 
-function applyPaceChartToggle() {
-    if (!paceChartToggle) return;
-    paceChartToggle.classList.toggle('on', showPaceChart);
-    paceChartToggle.setAttribute('aria-checked', showPaceChart ? 'true' : 'false');
+function openPaceChart() {
+    hideSettings();
+    paceChartOpen = true;
+    paceChartMeasureTries = 0;
+    if (paceChartEl) paceChartEl.hidden = false;
+    paceChartSignature = '';
+    requestAnimationFrame(() => renderPaceChart());
 }
 
-function togglePaceChart() {
-    showPaceChart = !showPaceChart;
-    applyPaceChartToggle();
-    persistPref(SHOW_PACE_CHART_KEY, showPaceChart.toString());
-    paceChartSignature = '';
-    renderPaceChart();
+function closePaceChart() {
+    paceChartOpen = false;
+    if (paceScrubTimer) {
+        clearTimeout(paceScrubTimer);
+        paceScrubTimer = null;
+    }
+    if (paceChartEl) paceChartEl.hidden = true;
+    paceChartSignature = 'hidden';
+    paceChartLayout = null;
 }
 
 // Update delivery history list
@@ -2547,7 +2560,11 @@ settingsOverlay.addEventListener('click', (e) => {
     }
 });
 historyToggle.addEventListener('click', toggleShowHistory);
-if (paceChartToggle) paceChartToggle.addEventListener('click', togglePaceChart);
+if (paceChartOpenBtn) paceChartOpenBtn.addEventListener('click', openPaceChart);
+if (paceChartCloseBtn) paceChartCloseBtn.addEventListener('click', closePaceChart);
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && paceChartOpen) closePaceChart();
+});
 if (paceChartSvg) {
     let pacePointer = null;
     const endPacePointer = (e) => {
@@ -2862,11 +2879,6 @@ if (localStorage.getItem(SHOW_HISTORY_KEY) === 'false') {
 }
 applyHistoryVisibility();
 
-if (localStorage.getItem(SHOW_PACE_CHART_KEY) === 'false') {
-    showPaceChart = false;
-}
-applyPaceChartToggle();
-
 if (localStorage.getItem(SKIP_HOLD_KEY) === 'false') {
     skipHoldEnabled = false;
 }
@@ -2983,6 +2995,7 @@ window.addEventListener('pointerdown', () => {
 });
 
 window.addEventListener('resize', () => {
+    paceChartMeasureTries = 0;
     paceChartSignature = '';
     renderPaceChart();
 });

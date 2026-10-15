@@ -52,9 +52,8 @@ body.light {
 .app {
     display: flex;
     flex-direction: column;
-    height: 100vh;
-    height: 100dvh;
-    min-height: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
     overflow: hidden;
     position: relative;
     padding-top: var(--safe-top);
@@ -262,154 +261,6 @@ body.slate .current-time {
 
 .light .stats-bar {
     background: rgba(234,88,12,0.14);
-}
-
-.pace-chart {
-    display: flex;
-    flex-direction: column;
-    flex-shrink: 0;
-    gap: 0;
-    padding: 4px 16px 2px;
-}
-
-.pace-chart[hidden] {
-    display: none;
-}
-
-.dark .pace-chart {
-    background: rgba(0,0,0,0.35);
-}
-
-.light .pace-chart {
-    background: rgba(234,88,12,0.14);
-}
-
-.slate .pace-chart {
-    background: rgba(8, 14, 22, 0.38);
-}
-
-.pace-chart-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-    min-height: 16px;
-}
-
-.pace-chart-title {
-    font-size: var(--label);
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    opacity: 0.45;
-}
-
-.pace-chart-readout {
-    font-size: 12px;
-    font-weight: 650;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.01em;
-    color: var(--good);
-    white-space: nowrap;
-}
-
-.light .pace-chart-readout {
-    color: var(--good-strong);
-}
-
-.pace-chart-readout.is-mid {
-    color: var(--accent);
-}
-
-.pace-chart-readout.is-slow {
-    color: var(--bad);
-}
-
-.light .pace-chart-readout.is-slow {
-    color: #dc2626;
-}
-
-.pace-chart-readout.is-skip {
-    color: var(--warn);
-}
-
-.pace-chart-stage {
-    position: relative;
-    height: 100px;
-}
-
-.pace-chart-svg {
-    width: 100%;
-    height: 100%;
-    display: block;
-    touch-action: none;
-    overflow: visible;
-}
-
-.pace-chart-empty {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    margin: 0;
-    font-size: 12px;
-    letter-spacing: 0.01em;
-    pointer-events: none;
-}
-
-.dark .pace-chart-empty {
-    color: rgba(255,255,255,0.38);
-}
-
-.light .pace-chart-empty {
-    color: rgba(0,0,0,0.38);
-}
-
-.pace-chart-stage.has-data .pace-chart-empty {
-    display: none;
-}
-
-.pace-chart-scale {
-    display: none;
-}
-
-.header,
-.stats-bar,
-.target-section,
-.progress-section,
-.history-section,
-.controls,
-.pace-chart {
-    flex-shrink: 0;
-}
-
-.pace-chart-open .main-display {
-    padding-top: 6px;
-    padding-bottom: 6px;
-}
-
-.pace-chart-open .total-section {
-    margin-top: 10px;
-}
-
-.pace-chart-open .history-section {
-    display: none;
-}
-
-@media (max-height: 760px) {
-    .app {
-        height: auto;
-        min-height: 100vh;
-        min-height: 100dvh;
-    }
-
-    .pace-chart {
-        display: none;
-    }
-
-    .pace-chart-open .history-section {
-        display: block;
-    }
 }
 
 .btn-action {
@@ -842,14 +693,6 @@ body.slate .current-time {
     padding: 16px;
     position: relative;
     min-height: 0;
-    overflow: hidden;
-}
-
-@media (min-height: 761px) {
-    .main-display {
-        container-type: size;
-        container-name: timer;
-    }
 }
 
 .status-badge {
@@ -925,38 +768,6 @@ body.slate .current-time {
 
 .current-time.paused {
     opacity: 0.4;
-}
-
-@container timer (max-height: 200px) {
-    .current-label {
-        display: none;
-    }
-
-    .current-time {
-        font-size: 52px;
-    }
-
-    .delivery-count {
-        margin-top: 2px;
-    }
-
-    .total-section {
-        margin-top: 2px;
-    }
-}
-
-@container timer (max-height: 125px) {
-    .current-time {
-        font-size: 40px;
-    }
-
-    .delivery-count {
-        margin-top: 0;
-    }
-
-    .total-section {
-        display: none;
-    }
 }
 
 .current-time.flash-green {
@@ -1878,6 +1689,164 @@ body.slate .current-time {
     opacity: 0.58;
 }
 
+.settings-row-action {
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.settings-row-action:active {
+    background: rgba(255,255,255,0.06);
+}
+
+.light .settings-row-action:active {
+    background: rgba(0,0,0,0.05);
+}
+
+.settings-action {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+
+.pace-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 120;
+    display: flex;
+    flex-direction: column;
+    padding: calc(var(--safe-top) + 12px) 16px calc(var(--safe-bottom) + 16px);
+    background: #121225;
+    color: white;
+}
+
+.pace-overlay[hidden] {
+    display: none !important;
+}
+
+.light .pace-overlay {
+    background: #fff7ed;
+    color: #1c1917;
+}
+
+.slate .pace-overlay {
+    background: #161c24;
+    color: #e8eef4;
+}
+
+.pace-chart-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-shrink: 0;
+    min-height: 44px;
+}
+
+.pace-chart-heading {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.pace-chart-title {
+    font-size: var(--label);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.45;
+}
+
+.pace-chart-readout {
+    font-size: 20px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    color: var(--good);
+    white-space: nowrap;
+}
+
+.light .pace-chart-readout {
+    color: var(--good-strong);
+}
+
+.pace-chart-readout.is-mid {
+    color: var(--accent);
+}
+
+.pace-chart-readout.is-slow {
+    color: var(--bad);
+}
+
+.light .pace-chart-readout.is-slow {
+    color: #dc2626;
+}
+
+.pace-chart-readout.is-skip {
+    color: var(--warn);
+}
+
+.pace-chart-close {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.light .pace-chart-close {
+    border-color: rgba(28,25,23,0.12);
+}
+
+.pace-chart-stage {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+}
+
+.pace-chart-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+}
+
+.pace-chart-empty {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    margin: 0;
+    font-size: 15px;
+    letter-spacing: 0.01em;
+    pointer-events: none;
+}
+
+.dark .pace-chart-empty,
+.slate .pace-chart-empty {
+    color: rgba(255,255,255,0.42);
+}
+
+.light .pace-chart-empty {
+    color: rgba(0,0,0,0.42);
+}
+
+.pace-chart-stage.has-data .pace-chart-empty {
+    display: none;
+}
+
 .settings-stepper {
     display: flex;
     align-items: center;
@@ -2247,8 +2216,7 @@ body.slate .current-time {
     display: none;
 }
 
-.minimal-mode .stats-bar,
-.minimal-mode .pace-chart {
+.minimal-mode .stats-bar {
     display: none;
 }
 
@@ -2308,8 +2276,6 @@ body.slate .current-time {
 @media (max-height: 700px) {
     .current-time { font-size: clamp(64px, 18vw, 80px); }
     .history-section { max-height: 72px; }
-    .pace-chart { padding-top: 2px; padding-bottom: 0; }
-    .pace-chart-stage { height: 96px; }
     .btn-main { height: 100px; font-size: 26px; }
     .main-display { padding: 8px 16px; }
     .total-section { margin-top: 8px; }
@@ -2320,8 +2286,6 @@ body.slate .current-time {
 @media (max-height: 600px) {
     .current-time { font-size: clamp(56px, 16vw, 68px); }
     .history-section { display: none; }
-    .pace-chart-open .history-section { display: none; }
-    .pace-chart { display: none; }
     .btn-main { height: 88px; font-size: 24px; }
     .split-btn { height: 42px; }
     .btn-add-time { height: 40px; }
