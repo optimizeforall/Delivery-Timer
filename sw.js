@@ -1,4 +1,4 @@
-const CACHE = 'delivery-timer-v18';
+const CACHE = 'delivery-timer-v19';
 const ASSETS = [
     './',
     './index.html',

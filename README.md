@@ -22,7 +22,7 @@ A phone-first timer for tracking delivery stops, pace, and whether you are on tr
 
 ## Pace and stats
 
-- **Pace graph** — in the top bar once a session starts. Each point is a stop, higher is faster, and the dashed line is the overall rate. Touch a point to read that stop. The recent list steps aside while the graph is on
+- **Pace graph** — in the top bar once a session starts. Time runs across, stops per hour run up, and each point is a stop. The dashed line is the overall rate. Touch a point to read that stop. The recent list steps aside while the graph is on
 - **Rate** — overall stops per hour (skipped stops are excluded)
 - **Avg** — average time per counted stop
 - **Best** — fastest counted stop this session
@@ -37,7 +37,7 @@ AHEAD / ON TRACK / BEHIND appears when both Stops and Finish by are set.
 ## Settings
 
 - **Recent deliveries** — show or hide the recent-stop list
-- **Pace graph** — show or hide the top-bar graph of how fast each stop was through the day. Each point is a stop, higher is faster, and the dashed line is the overall rate. Touch a point to read that stop
+- **Pace graph** — show or hide the top-bar chart. Time is the horizontal axis and stops per hour is the vertical axis. Each point is a stop.
 - **Recent rate** — how many of your latest counted stops Recent, Est. Finish, and on-track status use
 - **Hold to skip** — turn long-press skip on or off
 - **Hold duration** — how long you must hold DELIVERED to skip (0.85s by default)

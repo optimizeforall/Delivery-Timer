@@ -77,7 +77,7 @@
                                 <span class="settings-switch-knob"></span>
                             </button>
                         </div>
-                        <p class="settings-hint">In the top bar. Each point is a stop. Higher means a faster stop. The dashed line is your overall rate. The recent list steps aside while this is on.</p>
+                        <p class="settings-hint">Time across, stops per hour up. Each point is a stop. The dashed line is your overall rate. The recent list steps aside while this is on.</p>
                     </div>
                     <div class="settings-option">
                         <div class="settings-row">
@@ -191,7 +191,7 @@
                 </ul>
                 <div class="settings-help-heading">Pace and stats</div>
                 <ul>
-                    <li><strong>Pace graph</strong> — in the top bar, how fast each stop was through the day. Touch a point to read that stop. The recent list steps aside while it is on. Turn it off under Pace in Settings</li>
+                    <li><strong>Pace graph</strong> — time on the horizontal axis, stops per hour on the vertical. Each point is a stop. Touch one to read it. The recent list steps aside while it is on. Turn it off under Pace in Settings</li>
                     <li><strong>Rate</strong> — overall stops per hour</li>
                     <li><strong>Avg</strong> — average time per stop</li>
                     <li><strong>Best</strong> — fastest stop this session</li>
@@ -230,11 +230,11 @@
 
     <section class="pace-chart" id="paceChart" hidden aria-label="Pace through the day">
         <div class="pace-chart-head">
-            <span class="pace-chart-title">Pace</span>
+            <span class="pace-chart-title">Pace /hr</span>
             <span class="pace-chart-readout" id="paceChartReadout"></span>
         </div>
         <div class="pace-chart-stage" id="paceChartStage">
-            <svg id="paceChartSvg" class="pace-chart-svg" role="img" aria-label="Pace through the day. Each point is a stop."></svg>
+            <svg id="paceChartSvg" class="pace-chart-svg" role="img" aria-label="Pace per hour over time. Each point is a stop."></svg>
             <p class="pace-chart-empty" id="paceChartEmpty">Each stop shows up here</p>
         </div>
         <div class="pace-chart-scale">

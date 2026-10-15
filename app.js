@@ -81,11 +81,11 @@ const DEFAULT_SKIP_HOLD_MS = 850;
 const MIN_SKIP_HOLD_MS = 400;
 const MAX_SKIP_HOLD_MS = 2500;
 const SKIP_HOLD_STEP_MS = 50;
-const APP_VERSION = 16;
+const APP_VERSION = 17;
 const SEEN_VERSION_KEY = 'deliveryTimerSeenVersion';
 const MAX_DELIVERY_NUMBER = 9999;
 const WHATS_NEW = [
-    'A pace graph in the top bar shows how fast each stop was through the day. Each point is a stop. Touch one to read it. Turn it off in Settings.'
+    'The pace chart in the top bar plots time across and stops per hour up. Each point is a stop. Touch one to read it.'
 ];
 
 // DOM elements
@@ -1498,7 +1498,8 @@ function paceChartColors() {
         bad: light ? '#dc2626' : pick('--bad', '#ef4444'),
         warn: pick('--warn', '#f59e0b'),
         muted: light ? 'rgba(28,25,23,0.38)' : 'rgba(255,255,255,0.34)',
-        faint: light ? 'rgba(28,25,23,0.1)' : 'rgba(255,255,255,0.1)',
+        axis: light ? 'rgba(28,25,23,0.62)' : 'rgba(255,255,255,0.62)',
+        faint: light ? 'rgba(28,25,23,0.12)' : 'rgba(255,255,255,0.12)',
         hole: document.body.classList.contains('slate') ? '#161c24' : (light ? '#fff7ed' : '#121225'),
         area: light ? 0.18 : 0.32
     };
@@ -1573,22 +1574,55 @@ function svgCoord(n) {
     return (Math.round(n * 10) / 10).toString();
 }
 
-function paceAxisLabels() {
-    if (!deliveries.length) return ['', ''];
-    const times = deliveries.map(d => Number(d && d.at));
-    const timed = times.every(t => Number.isFinite(t) && t > 0);
-    if (timed) {
-        const start = formatTimeAMPM(new Date(times[0]));
-        const end = formatTimeAMPM(new Date(times[times.length - 1]));
-        return deliveries.length === 1 ? [start, ''] : [start, end];
+function nicePaceMax(ceiling) {
+    const nice = [10, 20, 30, 40, 50, 60, 80, 100, 120, 160, 200, 240, 300, 400, 600];
+    const target = Math.max(Number(ceiling) || 0, 10);
+    for (let i = 0; i < nice.length; i++) {
+        if (nice[i] >= target) return nice[i];
     }
-    return deliveries.length === 1 ? ['#1', ''] : ['#1', `#${deliveries.length}`];
+    return Math.ceil(target / 100) * 100;
+}
+
+function paceMoments() {
+    const timed = deliveries.length > 0 && deliveries.every(entry => {
+        const at = Number(entry && entry.at);
+        return Number.isFinite(at) && at > 0;
+    });
+    if (timed) return deliveries.map(entry => Number(entry.at));
+    let cursor = sessionStartTimestamp || Date.now();
+    return deliveries.map(entry => {
+        cursor += deliveryTime(entry) * 1000;
+        return cursor;
+    });
+}
+
+function paceTimeDomain(moments) {
+    let min = Math.min(...moments);
+    let max = Math.max(...moments);
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+        const now = Date.now();
+        return { min: now - 60000, max: now + 60000 };
+    }
+    const span = max - min;
+    const minSpan = 2 * 60 * 1000;
+    if (span < minSpan) {
+        const mid = (min + max) / 2;
+        min = mid - minSpan / 2;
+        max = mid + minSpan / 2;
+    }
+    return { min, max };
+}
+
+function formatPacePerHour(stopsPerHour) {
+    if (!Number.isFinite(stopsPerHour) || stopsPerHour <= 0) return '0/hr';
+    const rounded = Math.round(stopsPerHour * 10) / 10;
+    return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)}/hr`;
 }
 
 function describePacePoint(point) {
     if (!point) return '';
     if (point.skipped) return `#${point.num} · Skip`;
-    return `#${point.num} · ${formatStopTime(point.time)} · ${formatRate(point.rate)}`;
+    return `#${point.num} · ${formatStopTime(point.time)} · ${formatPacePerHour(point.rate)}`;
 }
 
 function setPaceReadout(point) {
@@ -1623,7 +1657,6 @@ function renderPaceChart() {
     const signature = [
         width,
         height,
-        rateUnit,
         decimalMode,
         theme,
         slateOn ? 1 : 0,
@@ -1633,6 +1666,7 @@ function renderPaceChart() {
     paceChartSignature = signature;
 
     const colors = paceChartColors();
+    const moments = paceMoments();
     const countedRates = [];
     deliveries.forEach(entry => {
         if (isSkipped(entry)) return;
@@ -1640,20 +1674,17 @@ function renderPaceChart() {
         if (time > 0) countedRates.push(3600 / time);
     });
     const overall = getOverallRate();
-    const ceiling = paceCeiling(countedRates, overall);
-    const pad = { l: 8, r: 8, t: height < 52 ? 7 : 12, b: height < 52 ? 5 : 8 };
-    const plotW = width - pad.l - pad.r;
-    const plotH = height - pad.t - pad.b;
-    const n = deliveries.length;
+    const yMax = nicePaceMax(paceCeiling(countedRates, overall));
+    const pad = { l: 30, r: 8, t: 8, b: 18 };
+    const plotW = Math.max(1, width - pad.l - pad.r);
+    const plotH = Math.max(1, height - pad.t - pad.b);
+    const domain = moments.length ? paceTimeDomain(moments) : paceTimeDomain([Date.now()]);
     const yFor = (rate) => {
-        const clamped = Math.max(0, Math.min(rate, ceiling));
-        const t = ceiling > 0 ? clamped / ceiling : 0;
-        return pad.t + (1 - t) * plotH;
+        const clamped = Math.max(0, Math.min(rate, yMax));
+        return pad.t + (1 - clamped / yMax) * plotH;
     };
-    const xFor = (index) => {
-        if (n <= 1) return pad.l + plotW / 2;
-        return pad.l + (index / (n - 1)) * plotW;
-    };
+    const xForTime = (ms) => pad.l + ((ms - domain.min) / (domain.max - domain.min)) * plotW;
+    const baseline = yFor(0);
 
     const points = deliveries.map((entry, index) => {
         const time = deliveryTime(entry);
@@ -1665,26 +1696,27 @@ function renderPaceChart() {
             time,
             rate,
             skipped,
-            at: entry.at,
-            x: xFor(index),
-            y: skipped ? height - pad.b : yFor(rate),
+            at: moments[index],
+            x: xForTime(moments[index]),
+            y: skipped ? baseline : yFor(rate),
             color: paceDotColor(time, skipped, colors)
         };
     });
     const linePoints = points.filter(point => !point.skipped && point.time > 0);
-    const gap = n <= 1 ? 24 : plotW / (n - 1);
-    const radius = Math.max(1.2, Math.min(3.5, gap * 0.42));
-    const labels = paceAxisLabels();
+    let lastX = -Infinity;
+    linePoints.forEach(point => {
+        if (point.x <= lastX) point.x = lastX + 0.6;
+        lastX = point.x;
+    });
+    const radius = points.length > 40 ? 2.2 : points.length > 16 ? 2.8 : 3.4;
     const latest = linePoints.length ? linePoints[linePoints.length - 1] : (points.length ? points[points.length - 1] : null);
 
     if (paceChartStage) paceChartStage.classList.toggle('has-data', points.length > 0);
-    if (paceChartStart) paceChartStart.textContent = labels[0];
-    if (paceChartEnd) paceChartEnd.textContent = labels[1];
     setPaceReadout(latest);
     if (paceChartSvg) {
         const summary = latest
-            ? `Pace through the day. ${points.length} stops. Latest ${describePacePoint(latest)}.`
-            : 'Pace through the day. Each point is a stop.';
+            ? `Stops per hour over time. ${points.length} stops. Latest ${describePacePoint(latest)}.`
+            : 'Stops per hour over time. Each point is a stop.';
         paceChartSvg.setAttribute('aria-label', summary);
         paceChartEl.setAttribute('aria-label', summary);
     }
@@ -1696,17 +1728,40 @@ function renderPaceChart() {
         `</linearGradient></defs>`
     ];
 
+    [yMax, yMax / 2, 0].forEach(tick => {
+        const y = yFor(tick);
+        const label = Number.isInteger(tick) ? String(tick) : String(Math.round(tick));
+        parts.push(`<line x1="${pad.l}" y1="${svgCoord(y)}" x2="${svgCoord(width - pad.r)}" y2="${svgCoord(y)}" stroke="${tick === 0 ? colors.muted : colors.faint}" stroke-width="1"/>`);
+        parts.push(`<text x="${pad.l - 6}" y="${svgCoord(y)}" text-anchor="end" dominant-baseline="middle" fill="${colors.axis}" font-size="10" font-weight="600">${label}</text>`);
+    });
+
     if (linePoints.length >= 2) {
         const curve = monotoneCurve(linePoints.map(point => ({ x: point.x, y: point.y })));
-        const floor = svgCoord(height - pad.b);
+        const floor = svgCoord(baseline);
         const area = `${curve} L ${svgCoord(linePoints[linePoints.length - 1].x)} ${floor} L ${svgCoord(linePoints[0].x)} ${floor} Z`;
         parts.push(`<path d="${area}" fill="url(#paceAreaFill)"/>`);
         parts.push(`<path d="${curve}" fill="none" stroke="${colors.good}" stroke-width="6" stroke-opacity="0.16" stroke-linecap="round" stroke-linejoin="round"/>`);
         parts.push(`<path d="${curve}" fill="none" stroke="${colors.good}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`);
-        if (overall > 0) {
+        if (overall > 0 && overall <= yMax) {
             const y = svgCoord(yFor(overall));
-            parts.push(`<line x1="${pad.l}" y1="${y}" x2="${svgCoord(width - pad.r)}" y2="${y}" stroke="${colors.muted}" stroke-width="1" stroke-dasharray="2 4"/>`);
+            parts.push(`<line x1="${pad.l}" y1="${y}" x2="${svgCoord(width - pad.r)}" y2="${y}" stroke="${colors.axis}" stroke-width="1" stroke-dasharray="2 4"/>`);
         }
+    }
+    parts.push(`<line x1="${pad.l}" y1="${svgCoord(pad.t)}" x2="${pad.l}" y2="${svgCoord(baseline)}" stroke="${colors.muted}" stroke-width="1"/>`);
+
+    const startLabel = formatTimeAMPM(new Date(domain.min));
+    const endLabel = formatTimeAMPM(new Date(domain.max));
+    const xLabels = startLabel === endLabel
+        ? [{ x: pad.l + plotW / 2, text: startLabel, anchor: 'middle' }]
+        : [
+            { x: pad.l, text: startLabel, anchor: 'start' },
+            { x: pad.l + plotW / 2, text: formatTimeAMPM(new Date((domain.min + domain.max) / 2)), anchor: 'middle' },
+            { x: pad.l + plotW, text: endLabel, anchor: 'end' }
+        ];
+    if (points.length) {
+        xLabels.forEach(label => {
+            parts.push(`<text x="${svgCoord(label.x)}" y="${svgCoord(height - 3)}" text-anchor="${label.anchor}" fill="${colors.axis}" font-size="10" font-weight="600">${label.text}</text>`);
+        });
     }
 
     points.forEach(point => {
@@ -1722,19 +1777,20 @@ function renderPaceChart() {
 
     paceChartSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     paceChartSvg.innerHTML = parts.join('');
-    paceChartLayout = { width, height, points, latest };
+    paceChartLayout = { width, height, points, latest, plotTop: pad.t, plotBottom: baseline };
 }
 
 function showPaceFocus(point) {
     if (!paceChartSvg || !point) return;
     const line = paceChartSvg.querySelector('#paceChartFocusLine');
     const dot = paceChartSvg.querySelector('#paceChartFocusDot');
-    const height = paceChartLayout ? paceChartLayout.height : 64;
+    const top = paceChartLayout ? paceChartLayout.plotTop : 8;
+    const bottom = paceChartLayout ? paceChartLayout.plotBottom : 90;
     if (line) {
         line.setAttribute('x1', svgCoord(point.x));
         line.setAttribute('x2', svgCoord(point.x));
-        line.setAttribute('y1', '6');
-        line.setAttribute('y2', svgCoord(height - 6));
+        line.setAttribute('y1', svgCoord(top));
+        line.setAttribute('y2', svgCoord(bottom));
     }
     if (dot) {
         dot.setAttribute('cx', svgCoord(point.x));

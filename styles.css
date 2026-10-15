@@ -335,7 +335,7 @@ body.slate .current-time {
 
 .pace-chart-stage {
     position: relative;
-    height: 46px;
+    height: 100px;
 }
 
 .pace-chart-svg {
@@ -370,16 +370,7 @@ body.slate .current-time {
 }
 
 .pace-chart-scale {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    min-height: 13px;
-    margin-top: 1px;
-    font-size: 10px;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0.02em;
-    opacity: 0.42;
+    display: none;
 }
 
 .header,
@@ -393,8 +384,8 @@ body.slate .current-time {
 }
 
 .pace-chart-open .main-display {
-    padding-top: 8px;
-    padding-bottom: 8px;
+    padding-top: 6px;
+    padding-bottom: 6px;
 }
 
 .pace-chart-open .total-section {
@@ -956,7 +947,7 @@ body.slate .current-time {
 
 @container timer (max-height: 125px) {
     .current-time {
-        font-size: 44px;
+        font-size: 40px;
     }
 
     .delivery-count {
@@ -2318,7 +2309,7 @@ body.slate .current-time {
     .current-time { font-size: clamp(64px, 18vw, 80px); }
     .history-section { max-height: 72px; }
     .pace-chart { padding-top: 2px; padding-bottom: 0; }
-    .pace-chart-stage { height: 40px; }
+    .pace-chart-stage { height: 96px; }
     .btn-main { height: 100px; font-size: 26px; }
     .main-display { padding: 8px 16px; }
     .total-section { margin-top: 8px; }
