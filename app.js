@@ -30,6 +30,7 @@ let isMinimalMode = false;
 let rateUnit = 'perHour'; // 'perHour' | 'perStop'
 let addedTimeMs = 0; // Extra time added for late starts (baked into timestamps once started)
 let showHistory = true;
+let paceChartOpen = false;
 let recentWindow = 7;
 let skipHoldEnabled = true;
 let skipHoldMs = 850;
@@ -79,11 +80,11 @@ const DEFAULT_SKIP_HOLD_MS = 850;
 const MIN_SKIP_HOLD_MS = 400;
 const MAX_SKIP_HOLD_MS = 2500;
 const SKIP_HOLD_STEP_MS = 50;
-const APP_VERSION = 15;
+const APP_VERSION = 18;
 const SEEN_VERSION_KEY = 'deliveryTimerSeenVersion';
 const MAX_DELIVERY_NUMBER = 9999;
 const WHATS_NEW = [
-    'Tap the delivery number in the center and type a higher one. Jumping from #30 to #40 logs 10 stops and splits that stop’s time across them.'
+    'Pace graph opens from Settings onto its own page. Time runs across, stops per hour run up, and each point is a stop. Close it and the timer is unchanged.'
 ];
 
 // DOM elements
@@ -142,6 +143,12 @@ const settingsBtn = $('settingsBtn');
 const settingsOverlay = $('settingsOverlay');
 const settingsClose = $('settingsClose');
 const historyToggle = $('historyToggle');
+const paceChartOpenBtn = $('paceChartOpen');
+const paceChartCloseBtn = $('paceChartClose');
+const paceChartEl = $('paceChart');
+const paceChartStage = $('paceChartStage');
+const paceChartSvg = $('paceChartSvg');
+const paceChartReadout = $('paceChartReadout');
 const skipHoldToggle = $('skipHoldToggle');
 const skipHoldHint = $('skipHoldHint');
 const skipHoldInput = $('skipHoldInput');
@@ -1065,10 +1072,13 @@ function normalizeDelivery(d) {
     }
     if (d && typeof d === 'object') {
         const time = Number(d.time);
-        return {
+        const entry = {
             time: Number.isFinite(time) ? time : 0,
             skipped: !!d.skipped
         };
+        const at = Number(d.at);
+        if (Number.isFinite(at) && at > 0) entry.at = at;
+        return entry;
     }
     return { time: 0, skipped: false };
 }
@@ -1465,10 +1475,392 @@ function updateDisplay() {
     updatePaceNeeded();
     updateProgress();
     updateSprintDisplay();
+    renderPaceChart();
 
     undoBtn.disabled = deliveries.length === 0;
     
     updateSplitControls();
+}
+
+let paceChartSignature = '';
+let paceChartLayout = null;
+let paceScrubTimer = null;
+let paceChartMeasureTries = 0;
+
+function paceChartColors() {
+    const light = document.body.classList.contains('light') && !document.body.classList.contains('slate');
+    const style = getComputedStyle(document.body);
+    const pick = (name, fallback) => style.getPropertyValue(name).trim() || fallback;
+    return {
+        good: light ? pick('--good-strong', '#16a34a') : pick('--good', '#4ade80'),
+        accent: pick('--accent', '#ff6b35'),
+        bad: light ? '#dc2626' : pick('--bad', '#ef4444'),
+        warn: pick('--warn', '#f59e0b'),
+        muted: light ? 'rgba(28,25,23,0.38)' : 'rgba(255,255,255,0.34)',
+        axis: light ? 'rgba(28,25,23,0.62)' : 'rgba(255,255,255,0.62)',
+        faint: light ? 'rgba(28,25,23,0.12)' : 'rgba(255,255,255,0.12)',
+        hole: document.body.classList.contains('slate') ? '#161c24' : (light ? '#fff7ed' : '#121225'),
+        area: light ? 0.18 : 0.32
+    };
+}
+
+function paceDotColor(seconds, skipped, colors) {
+    if (skipped) return colors.warn;
+    if (seconds < 90) return colors.good;
+    if (seconds <= 360) return colors.accent;
+    return colors.bad;
+}
+
+function paceCeiling(rates, overall) {
+    const sorted = rates.filter(rate => rate > 0).sort((a, b) => a - b);
+    if (!sorted.length) return 1;
+    const quantile = (q) => {
+        const pos = (sorted.length - 1) * q;
+        const lo = Math.floor(pos);
+        const hi = Math.ceil(pos);
+        if (lo === hi) return sorted[lo];
+        return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+    };
+    const median = quantile(0.5);
+    const high = quantile(0.95);
+    let ceiling = Math.max(high * 1.12, median * 1.65, 1);
+    if (overall > 0) ceiling = Math.max(ceiling, overall * 1.08);
+    return ceiling;
+}
+
+function monotoneCurve(pts) {
+    if (pts.length < 2) return '';
+    const n = pts.length;
+    const dx = [];
+    const slope = [];
+    const tangent = new Array(n);
+    for (let i = 0; i < n - 1; i++) {
+        dx[i] = pts[i + 1].x - pts[i].x || 1;
+        slope[i] = (pts[i + 1].y - pts[i].y) / dx[i];
+    }
+    tangent[0] = slope[0];
+    tangent[n - 1] = slope[n - 2];
+    for (let i = 1; i < n - 1; i++) {
+        tangent[i] = slope[i - 1] * slope[i] <= 0 ? 0 : (slope[i - 1] + slope[i]) / 2;
+    }
+    for (let i = 0; i < n - 1; i++) {
+        if (Math.abs(slope[i]) < 1e-6) {
+            tangent[i] = 0;
+            tangent[i + 1] = 0;
+        } else {
+            const a = tangent[i] / slope[i];
+            const b = tangent[i + 1] / slope[i];
+            const hypot = a * a + b * b;
+            if (hypot > 9) {
+                const scale = 3 / Math.sqrt(hypot);
+                tangent[i] = scale * a * slope[i];
+                tangent[i + 1] = scale * b * slope[i];
+            }
+        }
+    }
+    let path = `M ${svgCoord(pts[0].x)} ${svgCoord(pts[0].y)}`;
+    for (let i = 0; i < n - 1; i++) {
+        const c1x = pts[i].x + dx[i] / 3;
+        const c1y = pts[i].y + tangent[i] * dx[i] / 3;
+        const c2x = pts[i + 1].x - dx[i] / 3;
+        const c2y = pts[i + 1].y - tangent[i + 1] * dx[i] / 3;
+        path += ` C ${svgCoord(c1x)} ${svgCoord(c1y)} ${svgCoord(c2x)} ${svgCoord(c2y)} ${svgCoord(pts[i + 1].x)} ${svgCoord(pts[i + 1].y)}`;
+    }
+    return path;
+}
+
+function svgCoord(n) {
+    return (Math.round(n * 10) / 10).toString();
+}
+
+function nicePaceMax(ceiling) {
+    const nice = [10, 20, 30, 40, 50, 60, 80, 100, 120, 160, 200, 240, 300, 400, 600];
+    const target = Math.max(Number(ceiling) || 0, 10);
+    for (let i = 0; i < nice.length; i++) {
+        if (nice[i] >= target) return nice[i];
+    }
+    return Math.ceil(target / 100) * 100;
+}
+
+function paceMoments() {
+    const timed = deliveries.length > 0 && deliveries.every(entry => {
+        const at = Number(entry && entry.at);
+        return Number.isFinite(at) && at > 0;
+    });
+    if (timed) return deliveries.map(entry => Number(entry.at));
+    let cursor = sessionStartTimestamp || Date.now();
+    return deliveries.map(entry => {
+        cursor += deliveryTime(entry) * 1000;
+        return cursor;
+    });
+}
+
+function paceTimeDomain(moments) {
+    let min = Math.min(...moments);
+    let max = Math.max(...moments);
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+        const now = Date.now();
+        return { min: now - 60000, max: now + 60000 };
+    }
+    const span = max - min;
+    const minSpan = 2 * 60 * 1000;
+    if (span < minSpan) {
+        const mid = (min + max) / 2;
+        min = mid - minSpan / 2;
+        max = mid + minSpan / 2;
+    }
+    return { min, max };
+}
+
+function formatPacePerHour(stopsPerHour) {
+    if (!Number.isFinite(stopsPerHour) || stopsPerHour <= 0) return '0/hr';
+    const rounded = Math.round(stopsPerHour * 10) / 10;
+    return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)}/hr`;
+}
+
+function describePacePoint(point) {
+    if (!point) return '';
+    if (point.skipped) return `#${point.num} · Skip`;
+    return `#${point.num} · ${formatStopTime(point.time)} · ${formatPacePerHour(point.rate)}`;
+}
+
+function setPaceReadout(point) {
+    if (!paceChartReadout) return;
+    paceChartReadout.textContent = describePacePoint(point);
+    paceChartReadout.classList.remove('is-mid', 'is-slow', 'is-skip');
+    if (!point) return;
+    if (point.skipped) {
+        paceChartReadout.classList.add('is-skip');
+    } else if (point.time > 360) {
+        paceChartReadout.classList.add('is-slow');
+    } else if (point.time >= 90) {
+        paceChartReadout.classList.add('is-mid');
+    }
+}
+
+function renderPaceChart() {
+    if (!paceChartOpen || !paceChartEl || !paceChartSvg) return;
+
+    const width = Math.round(paceChartSvg.clientWidth);
+    const height = Math.round(paceChartSvg.clientHeight);
+    if (width < 20 || height < 20) {
+        if (paceChartMeasureTries < 4) {
+            paceChartMeasureTries += 1;
+            requestAnimationFrame(() => {
+                if (paceChartOpen) renderPaceChart();
+            });
+        }
+        return;
+    }
+    paceChartMeasureTries = 0;
+
+    const signature = [
+        width,
+        height,
+        decimalMode,
+        theme,
+        slateOn ? 1 : 0,
+        deliveries.map(d => `${deliveryTime(d)}:${isSkipped(d) ? 1 : 0}:${d.at || 0}`).join(',')
+    ].join('|');
+    if (signature === paceChartSignature) return;
+    paceChartSignature = signature;
+
+    const colors = paceChartColors();
+    const moments = paceMoments();
+    const countedRates = [];
+    deliveries.forEach(entry => {
+        if (isSkipped(entry)) return;
+        const time = deliveryTime(entry);
+        if (time > 0) countedRates.push(3600 / time);
+    });
+    const overall = getOverallRate();
+    const yMax = nicePaceMax(paceCeiling(countedRates, overall));
+    const pad = { l: 44, r: 16, t: 16, b: 32 };
+    const plotW = Math.max(1, width - pad.l - pad.r);
+    const plotH = Math.max(1, height - pad.t - pad.b);
+    const domain = moments.length ? paceTimeDomain(moments) : paceTimeDomain([Date.now()]);
+    const yFor = (rate) => {
+        const clamped = Math.max(0, Math.min(rate, yMax));
+        return pad.t + (1 - clamped / yMax) * plotH;
+    };
+    const xForTime = (ms) => pad.l + ((ms - domain.min) / (domain.max - domain.min)) * plotW;
+    const baseline = yFor(0);
+
+    const points = deliveries.map((entry, index) => {
+        const time = deliveryTime(entry);
+        const skipped = isSkipped(entry);
+        const rate = !skipped && time > 0 ? 3600 / time : 0;
+        return {
+            index,
+            num: index + 1,
+            time,
+            rate,
+            skipped,
+            at: moments[index],
+            x: xForTime(moments[index]),
+            y: skipped ? baseline : yFor(rate),
+            color: paceDotColor(time, skipped, colors)
+        };
+    });
+    const linePoints = points.filter(point => !point.skipped && point.time > 0);
+    let lastX = -Infinity;
+    linePoints.forEach(point => {
+        if (point.x <= lastX) point.x = lastX + 0.6;
+        lastX = point.x;
+    });
+    const radius = points.length > 40 ? 3.4 : points.length > 16 ? 4.2 : 5;
+    const latest = linePoints.length ? linePoints[linePoints.length - 1] : (points.length ? points[points.length - 1] : null);
+
+    if (paceChartStage) paceChartStage.classList.toggle('has-data', points.length > 0);
+    setPaceReadout(latest);
+    if (paceChartSvg) {
+        const summary = latest
+            ? `Stops per hour over time. ${points.length} stops. Latest ${describePacePoint(latest)}.`
+            : 'Stops per hour over time. Each point is a stop.';
+        paceChartSvg.setAttribute('aria-label', summary);
+        paceChartEl.setAttribute('aria-label', summary);
+    }
+
+    if (!points.length) {
+        paceChartSvg.innerHTML = '';
+        paceChartSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+        paceChartLayout = { width, height, points, latest: null, plotTop: pad.t, plotBottom: baseline };
+        return;
+    }
+
+    const parts = [
+        `<defs><linearGradient id="paceAreaFill" x1="0" y1="0" x2="0" y2="1">`,
+        `<stop offset="0%" stop-color="${colors.good}" stop-opacity="${colors.area}"/>`,
+        `<stop offset="100%" stop-color="${colors.good}" stop-opacity="0"/>`,
+        `</linearGradient></defs>`
+    ];
+
+    [yMax, yMax / 2, 0].forEach(tick => {
+        const y = yFor(tick);
+        const label = Number.isInteger(tick) ? String(tick) : String(Math.round(tick));
+        parts.push(`<line x1="${pad.l}" y1="${svgCoord(y)}" x2="${svgCoord(width - pad.r)}" y2="${svgCoord(y)}" stroke="${tick === 0 ? colors.muted : colors.faint}" stroke-width="1"/>`);
+        parts.push(`<text x="${pad.l - 8}" y="${svgCoord(y)}" text-anchor="end" dominant-baseline="middle" fill="${colors.axis}" font-size="12" font-weight="600">${label}</text>`);
+    });
+
+    if (linePoints.length >= 2) {
+        const curve = monotoneCurve(linePoints.map(point => ({ x: point.x, y: point.y })));
+        const floor = svgCoord(baseline);
+        const area = `${curve} L ${svgCoord(linePoints[linePoints.length - 1].x)} ${floor} L ${svgCoord(linePoints[0].x)} ${floor} Z`;
+        parts.push(`<path d="${area}" fill="url(#paceAreaFill)"/>`);
+        parts.push(`<path d="${curve}" fill="none" stroke="${colors.good}" stroke-width="6" stroke-opacity="0.16" stroke-linecap="round" stroke-linejoin="round"/>`);
+        parts.push(`<path d="${curve}" fill="none" stroke="${colors.good}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`);
+        if (overall > 0 && overall <= yMax) {
+            const y = svgCoord(yFor(overall));
+            parts.push(`<line x1="${pad.l}" y1="${y}" x2="${svgCoord(width - pad.r)}" y2="${y}" stroke="${colors.axis}" stroke-width="1" stroke-dasharray="2 4"/>`);
+        }
+    }
+    parts.push(`<line x1="${pad.l}" y1="${svgCoord(pad.t)}" x2="${pad.l}" y2="${svgCoord(baseline)}" stroke="${colors.muted}" stroke-width="1"/>`);
+
+    const startLabel = formatTimeAMPM(new Date(domain.min));
+    const endLabel = formatTimeAMPM(new Date(domain.max));
+    const xLabels = startLabel === endLabel
+        ? [{ x: pad.l + plotW / 2, text: startLabel, anchor: 'middle' }]
+        : [
+            { x: pad.l, text: startLabel, anchor: 'start' },
+            { x: pad.l + plotW / 2, text: formatTimeAMPM(new Date((domain.min + domain.max) / 2)), anchor: 'middle' },
+            { x: pad.l + plotW, text: endLabel, anchor: 'end' }
+        ];
+    if (points.length) {
+        xLabels.forEach(label => {
+            parts.push(`<text x="${svgCoord(label.x)}" y="${svgCoord(height - 8)}" text-anchor="${label.anchor}" fill="${colors.axis}" font-size="12" font-weight="600">${label.text}</text>`);
+        });
+    }
+
+    points.forEach(point => {
+        if (!point.skipped) return;
+        parts.push(`<circle cx="${svgCoord(point.x)}" cy="${svgCoord(point.y)}" r="2.3" fill="none" stroke="${colors.warn}" stroke-width="1.4"/>`);
+    });
+    linePoints.forEach(point => {
+        const emphasized = latest && point.index === latest.index;
+        const r = emphasized ? radius + 1.4 : radius;
+        parts.push(`<circle cx="${svgCoord(point.x)}" cy="${svgCoord(point.y)}" r="${svgCoord(r)}" fill="${point.color}" stroke="${colors.hole}" stroke-width="${emphasized ? 2 : 1}"/>`);
+    });
+    parts.push(`<g id="paceChartFocus" opacity="0"><line id="paceChartFocusLine" stroke="${colors.muted}" stroke-width="1"/><circle id="paceChartFocusDot" fill="none" stroke-width="2"/></g>`);
+
+    paceChartSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    paceChartSvg.innerHTML = parts.join('');
+    paceChartLayout = { width, height, points, latest, plotTop: pad.t, plotBottom: baseline };
+}
+
+function showPaceFocus(point) {
+    if (!paceChartSvg || !point) return;
+    const line = paceChartSvg.querySelector('#paceChartFocusLine');
+    const dot = paceChartSvg.querySelector('#paceChartFocusDot');
+    const top = paceChartLayout ? paceChartLayout.plotTop : 8;
+    const bottom = paceChartLayout ? paceChartLayout.plotBottom : 90;
+    if (line) {
+        line.setAttribute('x1', svgCoord(point.x));
+        line.setAttribute('x2', svgCoord(point.x));
+        line.setAttribute('y1', svgCoord(top));
+        line.setAttribute('y2', svgCoord(bottom));
+    }
+    if (dot) {
+        dot.setAttribute('cx', svgCoord(point.x));
+        dot.setAttribute('cy', svgCoord(point.y));
+        dot.setAttribute('r', '6');
+        dot.setAttribute('stroke', point.color);
+    }
+    setPaceReadout(point);
+}
+
+function nearestPacePoint(clientX) {
+    if (!paceChartLayout || !paceChartSvg || !paceChartLayout.points.length) return null;
+    const rect = paceChartSvg.getBoundingClientRect();
+    if (!rect.width) return null;
+    const x = ((clientX - rect.left) / rect.width) * paceChartLayout.width;
+    let best = null;
+    let bestDist = Infinity;
+    paceChartLayout.points.forEach(point => {
+        const dist = Math.abs(point.x - x);
+        if (dist < bestDist) {
+            best = point;
+            bestDist = dist;
+        }
+    });
+    return best;
+}
+
+function clearPaceScrub() {
+    if (paceScrubTimer) {
+        clearTimeout(paceScrubTimer);
+        paceScrubTimer = null;
+    }
+    const focus = paceChartSvg && paceChartSvg.querySelector('#paceChartFocus');
+    if (focus) focus.setAttribute('opacity', '0');
+    if (paceChartLayout) setPaceReadout(paceChartLayout.latest);
+}
+
+function scrubPaceChart(clientX) {
+    const point = nearestPacePoint(clientX);
+    if (!point) return;
+    const focus = paceChartSvg && paceChartSvg.querySelector('#paceChartFocus');
+    if (focus) focus.setAttribute('opacity', '1');
+    showPaceFocus(point);
+}
+
+function openPaceChart() {
+    hideSettings();
+    paceChartOpen = true;
+    paceChartMeasureTries = 0;
+    if (paceChartEl) paceChartEl.hidden = false;
+    paceChartSignature = '';
+    requestAnimationFrame(() => renderPaceChart());
+}
+
+function closePaceChart() {
+    paceChartOpen = false;
+    if (paceScrubTimer) {
+        clearTimeout(paceScrubTimer);
+        paceScrubTimer = null;
+    }
+    if (paceChartEl) paceChartEl.hidden = true;
+    paceChartSignature = 'hidden';
+    paceChartLayout = null;
 }
 
 // Update delivery history list
@@ -1631,7 +2023,11 @@ function commitDeliveries(splitTimes, skipped) {
         playDeliverySound();
     }
 
+    const loggedAt = Date.now();
+    const totalMs = splitTimes.reduce((sum, time) => sum + Math.max(0, time), 0) * 1000;
+    let stampedAt = loggedAt - totalMs;
     splitTimes.forEach(time => {
+        stampedAt += Math.max(0, time) * 1000;
         if (!skipped && time > 0) {
             const isNewRecord = time < bestTime && countedBefore > 0;
             if (time < bestTime) {
@@ -1641,7 +2037,7 @@ function commitDeliveries(splitTimes, skipped) {
                 hitNewRecord = true;
             }
         }
-        deliveries.push({ time, skipped: !!skipped });
+        deliveries.push({ time, skipped: !!skipped, at: Math.round(stampedAt) });
     });
 
     if (hitNewRecord) {
@@ -1936,6 +2332,8 @@ function applyTheme() {
     if (themeColor) {
         themeColor.setAttribute('content', slateOn ? '#161c24' : (isLight ? '#fff7ed' : '#121225'));
     }
+    paceChartSignature = '';
+    renderPaceChart();
 
     const slateToggle = $('slateToggle');
     if (slateToggle) {
@@ -1987,6 +2385,8 @@ function toggleMinimalMode() {
     isMinimalMode = !isMinimalMode;
     applyMinimalMode();
     persistPref('deliveryTimerMinimalMode', isMinimalMode.toString());
+    paceChartSignature = '';
+    renderPaceChart();
 }
 
 function applyHapticsToggle() {
@@ -2160,6 +2560,39 @@ settingsOverlay.addEventListener('click', (e) => {
     }
 });
 historyToggle.addEventListener('click', toggleShowHistory);
+if (paceChartOpenBtn) paceChartOpenBtn.addEventListener('click', openPaceChart);
+if (paceChartCloseBtn) paceChartCloseBtn.addEventListener('click', closePaceChart);
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && paceChartOpen) closePaceChart();
+});
+if (paceChartSvg) {
+    let pacePointer = null;
+    const endPacePointer = (e) => {
+        if (pacePointer === null) return;
+        if (e && typeof e.pointerId === 'number' && e.pointerId !== pacePointer) return;
+        pacePointer = null;
+        if (paceScrubTimer) clearTimeout(paceScrubTimer);
+        paceScrubTimer = setTimeout(clearPaceScrub, 1400);
+    };
+    paceChartSvg.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        pacePointer = e.pointerId;
+        if (paceScrubTimer) clearTimeout(paceScrubTimer);
+        if (e.cancelable) e.preventDefault();
+        try {
+            paceChartSvg.setPointerCapture(e.pointerId);
+        } catch (err) {
+            // Capture is optional
+        }
+        scrubPaceChart(e.clientX);
+    });
+    paceChartSvg.addEventListener('pointermove', (e) => {
+        if (pacePointer === null || e.pointerId !== pacePointer) return;
+        scrubPaceChart(e.clientX);
+    });
+    paceChartSvg.addEventListener('pointerup', endPacePointer);
+    paceChartSvg.addEventListener('pointercancel', endPacePointer);
+}
 skipHoldToggle.addEventListener('click', toggleSkipHold);
 keepScreenToggle.addEventListener('click', toggleKeepScreenOn);
 hapticsToggle.addEventListener('click', toggleHaptics);
@@ -2559,4 +2992,10 @@ if ('serviceWorker' in navigator && window.location.protocol !== 'file:') {
 
 window.addEventListener('pointerdown', () => {
     if (keepScreenOn) requestScreenWakeLock();
+});
+
+window.addEventListener('resize', () => {
+    paceChartMeasureTries = 0;
+    paceChartSignature = '';
+    renderPaceChart();
 });
