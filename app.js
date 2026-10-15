@@ -1493,13 +1493,14 @@ function paceChartColors() {
     const style = getComputedStyle(document.body);
     const pick = (name, fallback) => style.getPropertyValue(name).trim() || fallback;
     return {
-        good: pick('--good', '#4ade80'),
+        good: light ? pick('--good-strong', '#16a34a') : pick('--good', '#4ade80'),
         accent: pick('--accent', '#ff6b35'),
-        bad: pick('--bad', '#ef4444'),
+        bad: light ? '#dc2626' : pick('--bad', '#ef4444'),
         warn: pick('--warn', '#f59e0b'),
-        muted: light ? 'rgba(28,25,23,0.32)' : 'rgba(255,255,255,0.32)',
+        muted: light ? 'rgba(28,25,23,0.38)' : 'rgba(255,255,255,0.34)',
         faint: light ? 'rgba(28,25,23,0.1)' : 'rgba(255,255,255,0.1)',
-        hole: document.body.classList.contains('slate') ? '#161c24' : (light ? '#fff7ed' : '#121225')
+        hole: document.body.classList.contains('slate') ? '#161c24' : (light ? '#fff7ed' : '#121225'),
+        area: light ? 0.18 : 0.32
     };
 }
 
@@ -1608,6 +1609,7 @@ function renderPaceChart() {
     if (!paceChartEl || !paceChartSvg) return;
     const visible = showPaceChart && (hasStarted || deliveries.length > 0);
     paceChartEl.hidden = !visible;
+    document.body.classList.toggle('pace-chart-open', visible && !isMinimalMode);
     if (!visible) {
         paceChartSignature = 'hidden';
         paceChartLayout = null;
@@ -1639,7 +1641,7 @@ function renderPaceChart() {
     });
     const overall = getOverallRate();
     const ceiling = paceCeiling(countedRates, overall);
-    const pad = { l: 8, r: 8, t: 12, b: 8 };
+    const pad = { l: 8, r: 8, t: height < 52 ? 7 : 12, b: height < 52 ? 5 : 8 };
     const plotW = width - pad.l - pad.r;
     const plotH = height - pad.t - pad.b;
     const n = deliveries.length;
@@ -1689,7 +1691,7 @@ function renderPaceChart() {
 
     const parts = [
         `<defs><linearGradient id="paceAreaFill" x1="0" y1="0" x2="0" y2="1">`,
-        `<stop offset="0%" stop-color="${colors.good}" stop-opacity="0.32"/>`,
+        `<stop offset="0%" stop-color="${colors.good}" stop-opacity="${colors.area}"/>`,
         `<stop offset="100%" stop-color="${colors.good}" stop-opacity="0"/>`,
         `</linearGradient></defs>`
     ];

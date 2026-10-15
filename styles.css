@@ -52,8 +52,9 @@ body.light {
 .app {
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
-    min-height: 100dvh;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
     overflow: hidden;
     position: relative;
     padding-top: var(--safe-top);
@@ -266,8 +267,9 @@ body.slate .current-time {
 .pace-chart {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    padding: 8px 16px 6px;
+    flex-shrink: 0;
+    gap: 0;
+    padding: 4px 16px 2px;
 }
 
 .pace-chart[hidden] {
@@ -333,7 +335,7 @@ body.slate .current-time {
 
 .pace-chart-stage {
     position: relative;
-    height: 64px;
+    height: 46px;
 }
 
 .pace-chart-svg {
@@ -371,12 +373,52 @@ body.slate .current-time {
     display: flex;
     justify-content: space-between;
     gap: 12px;
-    min-height: 14px;
+    min-height: 13px;
+    margin-top: 1px;
     font-size: 10px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.02em;
     opacity: 0.42;
+}
+
+.header,
+.stats-bar,
+.target-section,
+.progress-section,
+.history-section,
+.controls,
+.pace-chart {
+    flex-shrink: 0;
+}
+
+.pace-chart-open .main-display {
+    padding-top: 8px;
+    padding-bottom: 8px;
+}
+
+.pace-chart-open .total-section {
+    margin-top: 10px;
+}
+
+.pace-chart-open .history-section {
+    display: none;
+}
+
+@media (max-height: 760px) {
+    .app {
+        height: auto;
+        min-height: 100vh;
+        min-height: 100dvh;
+    }
+
+    .pace-chart {
+        display: none;
+    }
+
+    .pace-chart-open .history-section {
+        display: block;
+    }
 }
 
 .btn-action {
@@ -809,6 +851,14 @@ body.slate .current-time {
     padding: 16px;
     position: relative;
     min-height: 0;
+    overflow: hidden;
+}
+
+@media (min-height: 761px) {
+    .main-display {
+        container-type: size;
+        container-name: timer;
+    }
 }
 
 .status-badge {
@@ -884,6 +934,38 @@ body.slate .current-time {
 
 .current-time.paused {
     opacity: 0.4;
+}
+
+@container timer (max-height: 200px) {
+    .current-label {
+        display: none;
+    }
+
+    .current-time {
+        font-size: 52px;
+    }
+
+    .delivery-count {
+        margin-top: 2px;
+    }
+
+    .total-section {
+        margin-top: 2px;
+    }
+}
+
+@container timer (max-height: 125px) {
+    .current-time {
+        font-size: 44px;
+    }
+
+    .delivery-count {
+        margin-top: 0;
+    }
+
+    .total-section {
+        display: none;
+    }
 }
 
 .current-time.flash-green {
@@ -2235,8 +2317,8 @@ body.slate .current-time {
 @media (max-height: 700px) {
     .current-time { font-size: clamp(64px, 18vw, 80px); }
     .history-section { max-height: 72px; }
-    .pace-chart { padding-top: 4px; padding-bottom: 2px; }
-    .pace-chart-stage { height: 48px; }
+    .pace-chart { padding-top: 2px; padding-bottom: 0; }
+    .pace-chart-stage { height: 40px; }
     .btn-main { height: 100px; font-size: 26px; }
     .main-display { padding: 8px 16px; }
     .total-section { margin-top: 8px; }
@@ -2247,6 +2329,7 @@ body.slate .current-time {
 @media (max-height: 600px) {
     .current-time { font-size: clamp(56px, 16vw, 68px); }
     .history-section { display: none; }
+    .pace-chart-open .history-section { display: none; }
     .pace-chart { display: none; }
     .btn-main { height: 88px; font-size: 24px; }
     .split-btn { height: 42px; }

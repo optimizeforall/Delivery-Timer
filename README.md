@@ -22,7 +22,7 @@ A phone-first timer for tracking delivery stops, pace, and whether you are on tr
 
 ## Pace and stats
 
-- **Pace graph** — in the top bar once a session starts. Each point is a stop, higher is faster, and the dashed line is the overall rate. Touch a point to read that stop
+- **Pace graph** — in the top bar once a session starts. Each point is a stop, higher is faster, and the dashed line is the overall rate. Touch a point to read that stop. The recent list steps aside while the graph is on
 - **Rate** — overall stops per hour (skipped stops are excluded)
 - **Avg** — average time per counted stop
 - **Best** — fastest counted stop this session
